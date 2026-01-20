@@ -87,7 +87,26 @@ npm run dev
 2. 运行 `supabase/migrations/001_initial_schema.sql`
 3. (可选) 运行 `supabase/seed.sql` 添加测试数据
 
+## 线上环境
+
+| 服务 | URL |
+|------|-----|
+| **Frontend** | https://claude-aunz-product-finder.netlify.app |
+| **Backend API** | https://claude-aunz-product-finder.onrender.com |
+| **GitHub 仓库** | https://github.com/derek33808/claude-aunz-product-finder |
+| **Supabase** | https://dfeeyhrjneuilmhsiwww.supabase.co |
+
 ## 更新日志
+
+### 2026-01-21
+- ✅ 部署到线上环境
+  - Frontend: Netlify (自动部署)
+  - Backend: Render (Python 免费层)
+- ✅ 配置环境变量
+- ✅ 修复 TypeScript 编译问题
+- ✅ 修复 Google Trends API 超时问题 (添加模拟数据备用)
+- ✅ 修复产品价格显示问题 (string to number)
+- ✅ 修复 API 路径问题 (trailing slash)
 
 ### 2026-01-20
 - 创建设计文档

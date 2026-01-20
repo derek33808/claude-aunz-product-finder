@@ -36,3 +36,6 @@ htmlcov/
 # Misc
 *.bak
 *.tmp
+
+# Local Netlify folder
+.netlify

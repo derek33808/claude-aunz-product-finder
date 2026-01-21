@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Button, Space, Select, Image, Tooltip } from 'antd';
-import { ShoppingOutlined, RiseOutlined, FileTextOutlined, GlobalOutlined, ReloadOutlined, FireOutlined, LinkOutlined, SearchOutlined, PictureOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Table, Tag, Button, Space, Select, Image, Tooltip, Modal, Descriptions, Divider } from 'antd';
+import { ShoppingOutlined, RiseOutlined, FileTextOutlined, GlobalOutlined, ReloadOutlined, FireOutlined, LinkOutlined, SearchOutlined, PictureOutlined, EyeOutlined, CloseOutlined, DeleteOutlined, DownOutlined, UpOutlined, ExportOutlined, FileAddOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { productsApi, reportsApi, trendsApi } from '../services/api';
 import type { Product, Report } from '../types';
+import type { TableRowSelection } from 'antd/es/table/interface';
+
+type HotProduct = Product & { hot_score: number };
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -14,10 +17,14 @@ const Dashboard = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(false);
   const [trendData, setTrendData] = useState<any>(null);
-  const [hotProducts, setHotProducts] = useState<(Product & { hot_score: number })[]>([]);
+  const [hotProducts, setHotProducts] = useState<HotProduct[]>([]);
   const [hotLoading, setHotLoading] = useState(false);
   const [selectedProductForTrend, setSelectedProductForTrend] = useState<string>('');
   const [trendLoading, setTrendLoading] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<HotProduct | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<HotProduct[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [selectionPanelCollapsed, setSelectionPanelCollapsed] = useState(false);
 
   useEffect(() => { loadDashboardData(); }, []);
 
@@ -73,12 +80,80 @@ const Dashboard = () => {
     return `https://www.google.com.au/search?q=${query}&tbm=shop`;
   };
 
-  const getSalesDisplay = (product: Product & { hot_score: number }) => {
+  const getSalesDisplay = (product: HotProduct) => {
     const monthlySalesEst = product.review_count ? product.review_count * 25 : 0;
     if (product.sold_count) {
       return `${t('products.soldCount')}: ${product.sold_count} | ${t('products.monthlySalesEst')}: ~${monthlySalesEst}`;
     }
     return monthlySalesEst > 0 ? `${t('products.monthlySalesEst')}: ~${monthlySalesEst}` : '-';
+  };
+
+  const handleGenerateReport = async (product: HotProduct) => {
+    try {
+      await reportsApi.generate({
+        title: 'Report: ' + product.title.substring(0, 50),
+        report_type: 'quick',
+        target_type: 'product',
+        target_value: product.id,
+      });
+      // message.success(t('products.reportStarted'));
+    } catch (error) {
+      console.error('Failed to generate report:', error);
+    }
+  };
+
+  const handleRemoveFromSelection = (productId: string) => {
+    setSelectedProducts(prev => prev.filter(p => p.id !== productId));
+    setSelectedRowKeys(prev => prev.filter(key => key !== productId));
+  };
+
+  const handleClearAllSelections = () => {
+    setSelectedProducts([]);
+    setSelectedRowKeys([]);
+  };
+
+  const handleExportSelected = () => {
+    if (selectedProducts.length === 0) return;
+    const exportData = selectedProducts.map(p => ({
+      title: p.title,
+      platform: p.platform,
+      price: `${p.currency} ${Number(p.price).toFixed(2)}`,
+      rating: p.rating,
+      reviews: p.review_count,
+      hot_score: p.hot_score,
+      url: p.product_url || ''
+    }));
+    const csvContent = [
+      Object.keys(exportData[0]).join(','),
+      ...exportData.map(row => Object.values(row).map(v => `"${v}"`).join(','))
+    ].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `selected_products_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+  };
+
+  const handleGenerateComparisonReport = async () => {
+    if (selectedProducts.length < 2) return;
+    try {
+      await reportsApi.generate({
+        title: 'Comparison: ' + selectedProducts.map(p => p.title.substring(0, 20)).join(' vs '),
+        report_type: 'comparison',
+        target_type: 'keyword',
+        target_value: selectedProducts.map(p => p.title).join(','),
+      });
+    } catch (error) {
+      console.error('Failed to generate comparison report:', error);
+    }
+  };
+
+  const rowSelection: TableRowSelection<HotProduct> = {
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys, newSelectedRows) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+      setSelectedProducts(newSelectedRows);
+    },
   };
 
   const productColumns = [
@@ -107,7 +182,17 @@ const Dashboard = () => {
       dataIndex: 'title',
       key: 'title',
       ellipsis: true,
-      render: (text: string) => <span title={text}>{text}</span>
+      render: (text: string, record: HotProduct) => (
+        <a
+          onClick={() => setSelectedProduct(record)}
+          style={{ color: '#1890ff', cursor: 'pointer' }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = '#40a9ff')}
+          onMouseLeave={(e) => (e.currentTarget.style.color = '#1890ff')}
+          title={text}
+        >
+          {text}
+        </a>
+      )
     },
     {
       title: t('products.platform'),
@@ -141,20 +226,27 @@ const Dashboard = () => {
     {
       title: t('products.actions'),
       key: 'actions',
-      width: 100,
-      render: (_: any, record: Product) => (
+      width: 120,
+      render: (_: any, record: HotProduct) => (
         <Space size="small">
-          {record.product_url && (
-            <Tooltip title={t('dashboard.platformLink')}>
-              <Button
-                type="text"
-                size="small"
-                icon={<LinkOutlined />}
-                href={record.product_url}
-                target="_blank"
-              />
-            </Tooltip>
-          )}
+          <Tooltip title={t('products.viewDetails')}>
+            <Button
+              type="text"
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => setSelectedProduct(record)}
+            />
+          </Tooltip>
+          <Tooltip title={record.product_url ? t('dashboard.platformLink') : t('dashboard.noProductUrl')}>
+            <Button
+              type="text"
+              size="small"
+              icon={<LinkOutlined />}
+              href={record.product_url}
+              target="_blank"
+              disabled={!record.product_url}
+            />
+          </Tooltip>
           <Tooltip title={t('dashboard.googleSearch')}>
             <Button
               type="text"
@@ -223,7 +315,15 @@ const Dashboard = () => {
       </Row>
       {hotProducts.length > 0 && (
         <Card title={<><FireOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />{t('dashboard.topHotProducts')}</>} style={{ marginBottom: 16 }}>
-          <Table dataSource={hotProducts} columns={hotProductColumns} rowKey="id" pagination={false} size="small" scroll={{ x: 900 }} />
+          <Table
+            dataSource={hotProducts}
+            columns={hotProductColumns}
+            rowKey="id"
+            pagination={false}
+            size="small"
+            scroll={{ x: 900 }}
+            rowSelection={rowSelection}
+          />
         </Card>
       )}
       <Row gutter={16}>
@@ -276,9 +376,171 @@ const Dashboard = () => {
           </Card>
         </Col>
       </Row>
-      <Card title={t('dashboard.recentProducts')} style={{ marginTop: 16 }}>
+      <Card title={t('dashboard.recentProducts')} style={{ marginTop: 16, marginBottom: selectedProducts.length > 0 ? 180 : 0 }}>
         <Table dataSource={products} columns={productColumns} rowKey="id" pagination={false} loading={loading} />
       </Card>
+
+      {/* Product Details Modal */}
+      <Modal
+        title={t('products.productDetails')}
+        open={!!selectedProduct}
+        onCancel={() => setSelectedProduct(null)}
+        width={800}
+        footer={[
+          selectedProduct?.product_url && (
+            <Button key="platform" icon={<LinkOutlined />} href={selectedProduct.product_url} target="_blank">
+              {t('dashboard.platformLink')}
+            </Button>
+          ),
+          <Button key="google" icon={<SearchOutlined />} href={selectedProduct ? getGoogleShoppingUrl(selectedProduct) : ''} target="_blank">
+            {t('dashboard.googleSearch')}
+          </Button>,
+          <Button key="report" type="primary" icon={<FileAddOutlined />} onClick={() => { if (selectedProduct) handleGenerateReport(selectedProduct); setSelectedProduct(null); }}>
+            {t('products.generateReport')}
+          </Button>,
+          <Button key="close" onClick={() => setSelectedProduct(null)}>
+            {t('products.close')}
+          </Button>,
+        ].filter(Boolean)}
+      >
+        {selectedProduct && (
+          <>
+            <Row gutter={24}>
+              <Col span={8}>
+                {selectedProduct.image_url ? (
+                  <Image src={selectedProduct.image_url} alt="Product" style={{ width: '100%', borderRadius: 8 }} />
+                ) : (
+                  <div style={{ width: '100%', height: 200, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}>
+                    <PictureOutlined style={{ fontSize: 48, color: '#bfbfbf' }} />
+                  </div>
+                )}
+              </Col>
+              <Col span={16}>
+                <Descriptions bordered column={2} size="small">
+                  <Descriptions.Item label={t('products.product')} span={2}>{selectedProduct.title}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.platform')}>
+                    <Tag color={platformColors[selectedProduct.platform]}>{selectedProduct.platform.toUpperCase()}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('products.price')}>
+                    {selectedProduct.price ? `${selectedProduct.currency} ${Number(selectedProduct.price).toFixed(2)}` : '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('products.rating')}>
+                    {selectedProduct.rating ? Number(selectedProduct.rating).toFixed(1) : '-'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('products.reviews')}>
+                    {selectedProduct.review_count || 0}
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('dashboard.hotScore')}>
+                    <Tag color="red">{selectedProduct.hot_score?.toFixed(0) || '-'}</Tag>
+                  </Descriptions.Item>
+                  <Descriptions.Item label={t('products.salesData')}>
+                    {getSalesDisplay(selectedProduct)}
+                  </Descriptions.Item>
+                </Descriptions>
+              </Col>
+            </Row>
+          </>
+        )}
+      </Modal>
+
+      {/* Selected Products Floating Panel */}
+      {selectedProducts.length > 0 && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: '#fff',
+            borderTop: '2px solid #1890ff',
+            boxShadow: '0 -4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            padding: selectionPanelCollapsed ? '12px 24px' : '16px 24px',
+            transition: 'all 0.3s ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: selectionPanelCollapsed ? 0 : 12 }}>
+            <Space>
+              <ShoppingOutlined style={{ color: '#1890ff', fontSize: 18 }} />
+              <span style={{ fontWeight: 'bold', fontSize: 16 }}>
+                {t('dashboard.selectedProducts')} ({selectedProducts.length})
+              </span>
+            </Space>
+            <Space>
+              <Button size="small" onClick={handleClearAllSelections} icon={<DeleteOutlined />}>
+                {t('dashboard.clearAll')}
+              </Button>
+              <Button
+                size="small"
+                type="text"
+                icon={selectionPanelCollapsed ? <UpOutlined /> : <DownOutlined />}
+                onClick={() => setSelectionPanelCollapsed(!selectionPanelCollapsed)}
+              >
+                {selectionPanelCollapsed ? t('dashboard.expand') : t('dashboard.collapse')}
+              </Button>
+              <Button size="small" type="text" icon={<CloseOutlined />} onClick={handleClearAllSelections} />
+            </Space>
+          </div>
+
+          {!selectionPanelCollapsed && (
+            <>
+              <div style={{ overflowX: 'auto', whiteSpace: 'nowrap', paddingBottom: 12 }}>
+                <Row gutter={12} style={{ flexWrap: 'nowrap', display: 'inline-flex' }}>
+                  {selectedProducts.map(product => (
+                    <Col key={product.id} style={{ width: 180, flex: '0 0 180px' }}>
+                      <Card
+                        size="small"
+                        style={{ height: '100%' }}
+                        cover={
+                          product.image_url ? (
+                            <div style={{ height: 80, overflow: 'hidden' }}>
+                              <img src={product.image_url} alt={product.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </div>
+                          ) : (
+                            <div style={{ height: 80, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              <PictureOutlined style={{ color: '#bfbfbf', fontSize: 24 }} />
+                            </div>
+                          )
+                        }
+                      >
+                        <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={product.title}>
+                          {product.title}
+                        </div>
+                        <div style={{ fontSize: 14, color: '#1890ff', fontWeight: 'bold', marginTop: 4 }}>
+                          {product.currency} {Number(product.price).toFixed(2)}
+                        </div>
+                        <Button
+                          size="small"
+                          type="text"
+                          danger
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleRemoveFromSelection(product.id)}
+                          style={{ marginTop: 4, padding: 0 }}
+                        >
+                          {t('dashboard.removeFromSelection')}
+                        </Button>
+                      </Card>
+                    </Col>
+                  ))}
+                </Row>
+              </div>
+
+              <Divider style={{ margin: '8px 0' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <Space>
+                  <Button icon={<ExportOutlined />} onClick={handleExportSelected}>
+                    {t('dashboard.exportSelected')}
+                  </Button>
+                  <Button type="primary" icon={<FileAddOutlined />} onClick={handleGenerateComparisonReport} disabled={selectedProducts.length < 2}>
+                    {t('dashboard.generateComparisonReport')}
+                  </Button>
+                </Space>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };

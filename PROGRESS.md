@@ -98,6 +98,73 @@ npm run dev
 
 ## 更新日志
 
+### 2026-01-21 (产品详情弹窗 + 已选产品面板)
+**准备执行**: 根据用户反馈优化选品工具交互体验
+**状态**: ✅ 完成
+
+#### 用户反馈问题
+1. 一键选品后，选中的"品"显示在哪里不清楚
+2. 产品不能点击进入详情页
+3. 没有可以点击到产品网页的功能
+
+#### 开发内容
+
+**1. 产品详情弹窗 (Dashboard.tsx)**
+- [x] 添加 `selectedProduct` 状态管理
+- [x] 复用 Products.tsx 弹窗样式创建详情弹窗
+- [x] 显示：产品图片、名称、平台、价格、评分、评论数、热度评分、销量数据
+- [x] 弹窗底部按钮：平台链接、Google搜索、生成报告、关闭
+
+**2. 产品名称可点击**
+- [x] 爆品列表产品名称改为可点击 `<a>` 标签
+- [x] 点击打开产品详情弹窗
+- [x] 添加悬停样式 (蓝色 -> 浅蓝色)
+
+**3. 优化操作按钮**
+- [x] 添加"查看详情"按钮 (EyeOutlined)
+- [x] 平台链接按钮优化：无链接时禁用并显示提示
+- [x] 保留 Google 购物搜索按钮
+- [x] 操作列宽度调整为 120px
+
+**4. 表格复选框选择功能**
+- [x] 添加 `selectedProducts` 和 `selectedRowKeys` 状态
+- [x] 表格添加 rowSelection 配置
+- [x] 选中时添加到已选列表，取消时移除
+
+**5. 页面底部"已选产品列表"浮动面板**
+- [x] 固定在页面底部 (position: fixed)
+- [x] 只在有选中产品时显示
+- [x] 显示已选产品卡片（图片、名称、价格）
+- [x] 支持单独删除或清空全部
+- [x] 支持收起/展开
+- [x] 导出已选产品 (CSV 格式)
+- [x] 生成对比报告（需选择 2 个以上产品）
+
+**6. 国际化翻译**
+- [x] en.json 添加 8 个新翻译键
+- [x] zh.json 添加 8 个对应中文翻译
+
+**7. 新增导入组件**
+- [x] EyeOutlined, CloseOutlined, DeleteOutlined, DownOutlined, UpOutlined, ExportOutlined, FileAddOutlined
+- [x] Modal, Descriptions, Divider
+- [x] TableRowSelection 类型
+
+#### 关键文件
+- `frontend/src/pages/Dashboard.tsx` - 主要功能实现
+- `frontend/src/i18n/locales/en.json` - 英文翻译
+- `frontend/src/i18n/locales/zh.json` - 中文翻译
+- `PROGRESS.md` - 进度更新
+
+#### 验证结果
+- [x] TypeScript 编译通过 (`npm run build` 成功)
+- [x] 无类型错误
+
+#### 下一步
+- [ ] 本地测试验证功能
+- [ ] 部署到 Netlify 验证线上环境
+
+---
+
 ### 2026-01-21 17:30 (完整迭代：功能优化 + QA + 测试 + 部署)
 **准备执行**: 根据用户反馈优化选品工具的前端展示
 **状态**: ✅ 完成并部署

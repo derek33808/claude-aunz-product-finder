@@ -38,7 +38,15 @@
     "selectProduct": "Select a product",
     "viewTrend": "View Trend",
     "platformLink": "Platform Link",
-    "googleSearch": "Google Shopping"
+    "googleSearch": "Google Shopping",
+    "noProductUrl": "No product link available",
+    "selectedProducts": "Selected Products",
+    "clearAll": "Clear All",
+    "removeFromSelection": "Remove",
+    "exportSelected": "Export Selected",
+    "generateComparisonReport": "Generate Comparison Report",
+    "collapse": "Collapse",
+    "expand": "Expand"
   },
   "products": {
     "title": "Product Search",
@@ -77,7 +85,8 @@
     "soldCount": "Sold",
     "monthlySalesEst": "Monthly Est.",
     "platformComparison": "Platform Comparison",
-    "noImage": "No Image"
+    "noImage": "No Image",
+    "viewDetails": "View Details"
   },
   "trends": {
     "title": "Google Trends Analysis",

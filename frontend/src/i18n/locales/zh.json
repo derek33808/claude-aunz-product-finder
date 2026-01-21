@@ -38,7 +38,15 @@
     "selectProduct": "选择产品",
     "viewTrend": "查看趋势",
     "platformLink": "平台链接",
-    "googleSearch": "Google 购物搜索"
+    "googleSearch": "Google 购物搜索",
+    "noProductUrl": "暂无产品链接",
+    "selectedProducts": "已选产品",
+    "clearAll": "清空",
+    "removeFromSelection": "移除",
+    "exportSelected": "导出已选",
+    "generateComparisonReport": "生成对比报告",
+    "collapse": "收起",
+    "expand": "展开"
   },
   "products": {
     "title": "产品搜索",
@@ -77,7 +85,8 @@
     "soldCount": "已售",
     "monthlySalesEst": "月销估算",
     "platformComparison": "多平台对比",
-    "noImage": "暂无图片"
+    "noImage": "暂无图片",
+    "viewDetails": "查看详情"
   },
   "trends": {
     "title": "Google 趋势分析",

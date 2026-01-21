@@ -1,12 +1,13 @@
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Layout, Menu, ConfigProvider, theme } from 'antd';
+import { Layout, Menu, ConfigProvider, theme, Dropdown, Button } from 'antd';
 import {
   DashboardOutlined,
   ShoppingOutlined,
   LineChartOutlined,
   FileTextOutlined,
-  SettingOutlined,
+  GlobalOutlined,
 } from '@ant-design/icons';
+import { useTranslation } from 'react-i18next';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Reports from './pages/Reports';
@@ -17,20 +18,40 @@ const { Header, Sider, Content } = Layout;
 
 const AppLayout = () => {
   const location = useLocation();
+  const { t, i18n } = useTranslation();
+
+  const changeLanguage = (lng: string) => {
+    i18n.changeLanguage(lng);
+  };
+
+  const languageItems = [
+    { key: 'en', label: 'English', onClick: () => changeLanguage('en') },
+    { key: 'zh', label: '中文', onClick: () => changeLanguage('zh') },
+  ];
 
   const menuItems = [
-    { key: '/', icon: <DashboardOutlined />, label: <Link to="/">Dashboard</Link> },
-    { key: '/products', icon: <ShoppingOutlined />, label: <Link to="/products">Products</Link> },
-    { key: '/trends', icon: <LineChartOutlined />, label: <Link to="/trends">Trends</Link> },
-    { key: '/reports', icon: <FileTextOutlined />, label: <Link to="/reports">Reports</Link> },
+    { key: '/', icon: <DashboardOutlined />, label: <Link to="/">{t('nav.dashboard')}</Link> },
+    { key: '/products', icon: <ShoppingOutlined />, label: <Link to="/products">{t('nav.products')}</Link> },
+    { key: '/trends', icon: <LineChartOutlined />, label: <Link to="/trends">{t('nav.trends')}</Link> },
+    { key: '/reports', icon: <FileTextOutlined />, label: <Link to="/reports">{t('nav.reports')}</Link> },
   ];
+
+  const getHeaderTitle = () => {
+    switch (location.pathname) {
+      case '/': return t('header.dashboard');
+      case '/products': return t('header.productSearch');
+      case '/trends': return t('header.googleTrends');
+      case '/reports': return t('header.reports');
+      default: return '';
+    }
+  };
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Sider theme="light" width={220} style={{ borderRight: '1px solid #f0f0f0' }}>
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #f0f0f0' }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>AU/NZ Finder</h2>
-          <span style={{ color: '#999', fontSize: 12 }}>Product Selection Tool</span>
+          <h2 style={{ margin: 0, fontSize: 18 }}>{t('app.title')}</h2>
+          <span style={{ color: '#999', fontSize: 12 }}>{t('app.subtitle')}</span>
         </div>
         <Menu
           mode="inline"
@@ -42,12 +63,13 @@ const AppLayout = () => {
       <Layout>
         <Header style={{ background: '#fff', padding: '0 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 16, fontWeight: 500 }}>
-            {location.pathname === '/' && 'Dashboard'}
-            {location.pathname === '/products' && 'Product Search'}
-            {location.pathname === '/trends' && 'Google Trends'}
-            {location.pathname === '/reports' && 'Reports'}
+            {getHeaderTitle()}
           </span>
-          <SettingOutlined style={{ fontSize: 18, cursor: 'pointer' }} />
+          <Dropdown menu={{ items: languageItems }} placement="bottomRight">
+            <Button type="text" icon={<GlobalOutlined />}>
+              {i18n.language === 'zh' ? '中文' : 'EN'}
+            </Button>
+          </Dropdown>
         </Header>
         <Content style={{ background: '#f5f5f5', minHeight: 280 }}>
           <Routes>

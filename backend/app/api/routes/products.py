@@ -76,6 +76,62 @@ async def search_products(
     return result.data
 
 
+@router.get("/hot", response_model=List[dict])
+async def get_hot_products(
+    limit: int = Query(10, ge=1, le=50),
+    db=Depends(get_db),
+):
+    """
+    Get top hot products based on a composite score.
+
+    Hot Score Algorithm:
+    - Review count: 40% weight (popularity indicator)
+    - Rating: 30% weight (quality indicator)
+    - Price reasonableness: 30% weight (10-100 range preferred)
+    """
+    # Query all products
+    result = db.table("products").select("*").execute()
+    products = result.data
+
+    if not products:
+        return []
+
+    # Calculate hot score for each product
+    def calculate_hot_score(product):
+        review_count = product.get("review_count") or 0
+        rating = product.get("rating") or 0
+        price = float(product.get("price") or 0)
+
+        # Normalize review count (log scale to avoid extreme values)
+        import math
+        review_score = min(math.log10(review_count + 1) * 20, 100) if review_count > 0 else 0
+
+        # Rating score (0-5 -> 0-100)
+        rating_score = rating * 20
+
+        # Price reasonableness (products in 10-200 range score higher)
+        if 10 <= price <= 200:
+            price_score = 100
+        elif 5 <= price <= 500:
+            price_score = 70
+        elif price > 0:
+            price_score = 40
+        else:
+            price_score = 0
+
+        # Calculate weighted score
+        hot_score = (review_score * 0.4) + (rating_score * 0.3) + (price_score * 0.3)
+        return round(hot_score, 2)
+
+    # Add hot_score to each product
+    for product in products:
+        product["hot_score"] = calculate_hot_score(product)
+
+    # Sort by hot_score descending and return top N
+    products.sort(key=lambda x: x["hot_score"], reverse=True)
+    return products[:limit]
+
+
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(
     product_id: UUID,
@@ -83,10 +139,10 @@ async def get_product(
 ):
     """Get product by ID."""
     result = db.table("products").select("*").eq("id", str(product_id)).execute()
-    
+
     if not result.data:
         raise HTTPException(status_code=404, detail="Product not found")
-    
+
     return result.data[0]
 
 

@@ -98,6 +98,29 @@ npm run dev
 
 ## 更新日志
 
+### 2026-01-21 11:17
+**准备执行**: 排查 Netlify 域名无法访问问题
+**状态**: ✅ 完成
+
+**问题原因**: Netlify 构建配置未设置 `base` 目录，导致从仓库根目录构建而非 `frontend/` 子目录
+
+**解决方案**:
+1. 通过 Netlify API 更新 build_settings:
+   - `base: "frontend"`
+   - `cmd: "npm run build"`
+   - `dir: "dist"`
+2. 触发重新部署 `netlify deploy --build --prod`
+
+**验证结果**: HTTP 200，网站正常访问 ✅
+
+**关键文件**:
+- `frontend/netlify.toml` - 重定向配置（已有）
+- Netlify build_settings - 已修复
+
+---
+
+---
+
 ### 2026-01-21
 - ✅ 部署到线上环境
   - Frontend: Netlify (自动部署)

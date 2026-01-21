@@ -43,6 +43,11 @@ export const productsApi = {
     });
     return response.data;
   },
+
+  getHotProducts: async (limit = 10): Promise<(Product & { hot_score: number })[]> => {
+    const response = await api.get('/api/products/hot', { params: { limit } });
+    return response.data;
+  },
 };
 
 // Trends API

@@ -796,6 +796,131 @@ Base URL: https://www.trademe.co.nz
 | 数据准确性 | 多源交叉验证 |
 | 法律合规 | 仅采集公开数据，遵守robots.txt |
 
+## 测试策略
+
+### 测试范围
+
+#### 核心测试范围
+| 模块 | 测试类型 | 优先级 | 说明 |
+|------|---------|--------|------|
+| API 端点 | 单元测试 + 集成测试 | P0 | 所有 `/api/*` 路由 |
+| 数据服务层 | 单元测试 | P0 | EbayService, GoogleTrendsService 等 |
+| 业务逻辑 | 单元测试 | P0 | 热度评分算法、报告生成逻辑 |
+| 前端组件 | 组件测试 | P1 | Dashboard, Products, Reports 页面 |
+| 前端交互 | 集成测试 | P1 | 用户操作流程测试 |
+| 数据库操作 | 集成测试 | P1 | Supabase CRUD 操作 |
+
+#### 不在测试范围
+- 第三方 API 真实调用（使用 Mock）
+- 浏览器兼容性测试
+- 性能压力测试（MVP 阶段）
+
+### 测试类型规划
+
+#### 1. 单元测试 (Unit Tests)
+- **后端**: pytest + pytest-asyncio
+- **前端**: Vitest + React Testing Library
+- **覆盖范围**:
+  - API 路由处理函数
+  - 服务层业务逻辑
+  - 工具函数
+  - React 组件渲染和状态
+
+#### 2. 集成测试 (Integration Tests)
+- **后端**: pytest + httpx (TestClient)
+- **前端**: Vitest + MSW (Mock Service Worker)
+- **覆盖范围**:
+  - API 请求/响应完整流程
+  - 数据库读写操作
+  - 组件间交互
+
+#### 3. 端到端测试 (E2E Tests) - Phase 2
+- **工具**: Playwright
+- **覆盖范围**: 关键用户流程
+
+### 测试覆盖率目标
+
+| 阶段 | 目标覆盖率 | 说明 |
+|------|-----------|------|
+| MVP | 50% | 核心 API 和关键组件 |
+| Phase 2 | 70% | 完整业务逻辑 |
+| Phase 3+ | 80% | 全面覆盖 |
+
+### 测试目录结构
+
+```
+backend/
+├── tests/
+│   ├── __init__.py
+│   ├── conftest.py          # pytest 配置和 fixtures
+│   ├── test_main.py         # 应用入口测试
+│   ├── api/
+│   │   ├── test_products.py # 产品 API 测试
+│   │   ├── test_reports.py  # 报告 API 测试
+│   │   └── test_trends.py   # 趋势 API 测试
+│   └── services/
+│       ├── test_ebay_service.py
+│       └── test_google_trends_service.py
+
+frontend/
+├── src/
+│   └── __tests__/
+│       ├── setup.ts          # 测试配置
+│       ├── App.test.tsx      # App 组件测试
+│       └── pages/
+│           ├── Dashboard.test.tsx
+│           └── Products.test.tsx
+├── vitest.config.ts
+```
+
+### 测试验收标准
+
+1. **所有测试必须通过**: CI/CD 流水线中测试失败则阻止合并
+2. **覆盖率不得下降**: 新代码必须包含对应测试
+3. **测试独立性**: 测试之间互不依赖，可单独运行
+4. **Mock 外部依赖**: 第三方 API 必须使用 Mock
+
+---
+
+## 验收标准
+
+### 功能验收标准
+
+| 功能 | 验收条件 | 验证方法 |
+|------|---------|---------|
+| 产品搜索 | 关键词搜索返回结果 < 2秒 | API 响应时间测试 |
+| 多平台数据 | 支持 eBay AU/NZ, TradeMe | 各平台数据抓取测试 |
+| 爆品发现 | 热度评分算法输出一致 | 单元测试验证算法 |
+| Google Trends | 趋势数据正确显示 | 集成测试 + 手动验证 |
+| 报告生成 | PDF/Excel 正确生成 | 文件格式验证 |
+| 中英文切换 | UI 完整翻译 | 手动验证两种语言 |
+
+### 性能验收标准
+
+| 指标 | 目标值 | 测量方法 |
+|------|--------|---------|
+| API 响应时间 | < 2秒 (P95) | 性能测试 |
+| 首页加载时间 | < 3秒 | Lighthouse 测试 |
+| 报告生成时间 | < 30秒 | 功能测试 |
+
+### 质量验收标准
+
+| 指标 | 目标值 | 说明 |
+|------|--------|------|
+| 测试覆盖率 | >= 70% | 后端 + 前端综合 |
+| Bug 密度 | < 1个/千行代码 | 严重/高优先级 Bug |
+| 代码审查 | 100% | 所有 PR 必须审查 |
+
+### 部署验收标准
+
+- [ ] 前端: Netlify 部署成功，访问正常
+- [ ] 后端: Render 部署成功，API 响应正常
+- [ ] 数据库: Supabase 连接正常
+- [ ] 环境变量: 所有必需变量已配置
+- [ ] HTTPS: 所有服务启用 HTTPS
+
+---
+
 ## 下一步
 
 1. 确认设计方案

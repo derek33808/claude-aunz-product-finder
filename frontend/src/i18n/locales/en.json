@@ -24,6 +24,7 @@
     "trending": "Trending",
     "active": "Active",
     "googleTrends": "Google Trends - AU",
+    "googleTrendsFor": "Google Trends - {{product}}",
     "sample": "Sample",
     "noTrendData": "No trend data",
     "recentReports": "Recent Reports",
@@ -33,7 +34,11 @@
     "topHotProducts": "Top 10 Hot Products",
     "findHotProducts": "Find Hot Products",
     "finding": "Finding...",
-    "hotScore": "Hot Score"
+    "hotScore": "Hot Score",
+    "selectProduct": "Select a product",
+    "viewTrend": "View Trend",
+    "platformLink": "Platform Link",
+    "googleSearch": "Google Shopping"
   },
   "products": {
     "title": "Product Search",
@@ -65,7 +70,14 @@
     "noProducts": "No products found. Try fetching from platforms.",
     "fetchFailed": "Failed to fetch from",
     "reportStarted": "Report generation started! Check Reports page.",
-    "reportFailed": "Failed to start report generation"
+    "reportFailed": "Failed to start report generation",
+    "bsrRank": "BSR Rank",
+    "sellerCount": "Sellers",
+    "salesData": "Sales Data",
+    "soldCount": "Sold",
+    "monthlySalesEst": "Monthly Est.",
+    "platformComparison": "Platform Comparison",
+    "noImage": "No Image"
   },
   "trends": {
     "title": "Google Trends Analysis",
@@ -83,7 +95,16 @@
     "value": "Value",
     "noData": "No data available",
     "enterKeyword": "Please enter a keyword",
-    "analysisFailed": "Failed to analyze trends"
+    "analysisFailed": "Failed to analyze trends",
+    "xAxisLabel": "Time (Month)",
+    "yAxisLabel": "Search Interest Index (0-100)",
+    "chartExplanation": "A value of 100 represents peak search interest, 50 means half of the peak interest level.",
+    "enterMultipleKeywords": "Enter multiple keywords separated by commas",
+    "keywordComparison": "Keyword Comparison",
+    "compareKeywords": "Compare Keywords",
+    "avgInterest": "Avg Interest",
+    "maxInterest": "Max",
+    "currentInterest": "Current"
   },
   "reports": {
     "title": "Reports",

@@ -98,6 +98,105 @@ npm run dev
 
 ## 更新日志
 
+### 2026-01-21 16:36 (P0 国际化修复 + QA 验证)
+**准备执行**: 修复 Trends.tsx 国际化问题并完成 QA 验证
+**状态**: ✅ 完成
+
+**问题背景**:
+- QA 代码审查 #2 发现 Trends.tsx 中 6 处硬编码文本未国际化
+- 标记为 P0 优先级（影响国际化完整性）
+
+**修复内容**:
+- [x] Trends.tsx 第 35 行: `message.warning("Enter multiple keywords...")` -> `message.warning(t('trends.enterMultipleKeywords'))`
+- [x] Trends.tsx 第 78 行: 图表标题 `"Keyword Comparison"` -> `t('trends.keywordComparison')`
+- [x] Trends.tsx 第 114 行: 按钮 `"Compare Keywords"` -> `t('trends.compareKeywords')`
+- [x] Trends.tsx 第 177 行: 表格列 `"Avg Interest"` -> `t('trends.avgInterest')`
+- [x] Trends.tsx 第 178 行: 表格列 `"Max"` -> `t('trends.maxInterest')`
+- [x] Trends.tsx 第 179 行: 表格列 `"Current"` -> `t('trends.currentInterest')`
+
+**翻译文件更新**:
+- [x] en.json 添加 6 个新翻译键
+- [x] zh.json 添加 6 个对应中文翻译
+
+**QA 验证结果**:
+- [x] 代码审查: 6 处修复全部正确使用 i18n
+- [x] TypeScript 编译: `npm run build` 成功
+- [x] 类型检查: `tsc --noEmit` 无错误
+- [x] 翻译键检查: en.json 和 zh.json 完全对应
+
+**关键文件**:
+- `frontend/src/pages/Trends.tsx` - 6 处国际化修复
+- `frontend/src/i18n/locales/en.json` - 新增翻译
+- `frontend/src/i18n/locales/zh.json` - 新增翻译
+- `QA_REPORT.md` - 更新审查记录和质量评分
+
+**QA 结论**: ✅ P0 问题已修复，可发布
+
+**下一步**:
+- [ ] 部署到 Netlify 验证公网环境
+- [ ] 完成语言切换功能的完整 E2E 测试
+
+---
+
+### 2026-01-21 (前端功能优化)
+**准备执行**: 优化选品工具的前端展示
+**状态**: ✅ 完成
+
+**完成内容**:
+
+#### 1. 优化 Google Trends 图表 (Dashboard.tsx & Trends.tsx)
+- [x] X轴添加标签："时间 (月份)" / "Time (Month)"
+- [x] Y轴添加标签："搜索热度指数 (0-100)" / "Search Interest Index (0-100)"
+- [x] 图表下方添加说明文字解释热度指数含义
+- [x] Dashboard 中添加产品选择下拉框，可从爆品列表选择产品查看其 Google Trends
+- [x] 图表标题动态显示当前选择的产品名称
+
+#### 2. 添加各平台排名详细数据 (Products.tsx)
+- [x] 表格添加"平台排名"列 (bsr_rank)，金色奖杯标签显示
+- [x] 表格添加"卖家数"列 (seller_count)，店铺图标显示
+- [x] 产品详情弹窗添加多平台对比卡片
+  - 显示各平台的排名和卖家数量
+  - 用不同颜色区分平台 (蓝/绿/橙/紫)
+  - 当前平台高亮显示
+
+#### 3. 完善产品图片和商品链接 (Dashboard.tsx)
+- [x] 爆品列表添加图片列
+  - 有图片显示缩略图 (50x50)
+  - 无图片显示占位图标
+- [x] 添加操作列
+  - 平台链接按钮 - 跳转到原平台商品页
+  - Google 搜索按钮 - 打开 Google 购物搜索
+    - AU 产品: google.com.au/search?q=...&tbm=shop
+    - NZ 产品: google.co.nz/search?q=...&tbm=shop
+
+#### 4. 添加销量数据显示 (Products.tsx & Dashboard.tsx)
+- [x] 表格添加"销量数据"列
+  - 显示 sold_count (如果有)
+  - 显示月销估算值 (review_count * 25)
+- [x] 产品详情弹窗添加销量数据卡片
+  - 大字显示已售数量、月销估算、评论数
+
+#### 5. 更新国际化文件
+- [x] en.json 添加新翻译 (12+ 新条目)
+- [x] zh.json 添加新翻译 (12+ 新条目)
+
+#### 6. 更新类型定义
+- [x] Product 接口添加 sold_count 可选字段
+
+**关键文件**:
+- `frontend/src/pages/Dashboard.tsx` - 图表优化、产品选择器、爆品列表增强
+- `frontend/src/pages/Products.tsx` - 新增列、销量卡片、平台对比卡片
+- `frontend/src/pages/Trends.tsx` - 轴标签、图表说明
+- `frontend/src/i18n/locales/en.json` - 英文翻译
+- `frontend/src/i18n/locales/zh.json` - 中文翻译
+- `frontend/src/types/index.ts` - Product 类型更新
+
+**下一步**:
+- [ ] 部署到 Netlify 验证
+- [ ] 用户测试反馈
+
+---
+
 ### 2026-01-21 13:48 (测试框架建设)
 **准备执行**: 根据 QA 报告添加测试策略和测试框架
 **状态**: ✅ 完成

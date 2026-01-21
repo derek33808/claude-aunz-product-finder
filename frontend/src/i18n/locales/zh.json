@@ -24,6 +24,7 @@
     "trending": "趋势状态",
     "active": "活跃",
     "googleTrends": "Google 趋势 - 澳洲",
+    "googleTrendsFor": "Google 趋势 - {{product}}",
     "sample": "示例",
     "noTrendData": "暂无趋势数据",
     "recentReports": "最近报告",
@@ -33,7 +34,11 @@
     "topHotProducts": "Top 10 热门产品",
     "findHotProducts": "一键选爆品",
     "finding": "搜索中...",
-    "hotScore": "热度评分"
+    "hotScore": "热度评分",
+    "selectProduct": "选择产品",
+    "viewTrend": "查看趋势",
+    "platformLink": "平台链接",
+    "googleSearch": "Google 购物搜索"
   },
   "products": {
     "title": "产品搜索",
@@ -65,7 +70,14 @@
     "noProducts": "未找到产品，请尝试从平台抓取数据",
     "fetchFailed": "抓取失败：",
     "reportStarted": "报告生成已启动！请到报告中心查看",
-    "reportFailed": "报告生成失败"
+    "reportFailed": "报告生成失败",
+    "bsrRank": "平台排名",
+    "sellerCount": "卖家数",
+    "salesData": "销量数据",
+    "soldCount": "已售",
+    "monthlySalesEst": "月销估算",
+    "platformComparison": "多平台对比",
+    "noImage": "暂无图片"
   },
   "trends": {
     "title": "Google 趋势分析",
@@ -83,7 +95,16 @@
     "value": "热度",
     "noData": "暂无数据",
     "enterKeyword": "请输入关键词",
-    "analysisFailed": "趋势分析失败"
+    "analysisFailed": "趋势分析失败",
+    "xAxisLabel": "时间 (月份)",
+    "yAxisLabel": "搜索热度指数 (0-100)",
+    "chartExplanation": "数值100表示搜索热度最高点，50表示热度为最高点的一半。",
+    "enterMultipleKeywords": "输入多个关键词，用逗号分隔",
+    "keywordComparison": "关键词对比",
+    "compareKeywords": "对比关键词",
+    "avgInterest": "平均热度",
+    "maxInterest": "最高",
+    "currentInterest": "当前"
   },
   "reports": {
     "title": "报告中心",

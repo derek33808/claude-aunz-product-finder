@@ -10,6 +10,7 @@ export interface Product {
   rating?: number;
   review_count: number;
   seller_count: number;
+  sold_count?: number;
   bsr_rank?: number;
   image_url?: string;
   product_url?: string;

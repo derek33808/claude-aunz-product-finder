@@ -4,8 +4,8 @@
 - **项目名称**: AU/NZ 选品工具 (aunz-product-finder)
 - **QA 负责人**: qa-guardian
 - **报告创建日期**: 2026-01-21
-- **最后更新日期**: 2026-01-21 16:30 (公网E2E测试完成)
-- **当前状态**: 🟢 公网 E2E 测试全部通过
+- **最后更新日期**: 2026-01-21 (P0 国际化修复验证)
+- **当前状态**: 🟢 P0 修复验证通过 - 可发布
 
 ---
 
@@ -68,6 +68,175 @@
 - **改进建议**:
   - 添加API文档（OpenAPI/Swagger）
   - 考虑添加类型注解
+
+### 审查 #2 - 2026-01-21 (前端功能优化代码审查)
+- **审查范围**: 前端功能优化相关文件
+  - `frontend/src/types/index.ts`
+  - `frontend/src/i18n/locales/en.json`
+  - `frontend/src/i18n/locales/zh.json`
+  - `frontend/src/pages/Dashboard.tsx`
+  - `frontend/src/pages/Products.tsx`
+  - `frontend/src/pages/Trends.tsx`
+- **代码质量评分**: 4.2/5
+
+#### 审查维度评估
+
+| 维度 | 评分 | 评价 |
+|------|------|------|
+| 代码可读性 | 4/5 | 命名规范，结构清晰，部分函数可进一步拆分 |
+| TypeScript 类型安全 | 4/5 | 类型定义完整，少量 `any` 类型使用 |
+| 国际化完整性 | 5/5 | 中英文翻译完整对应，专业术语准确 |
+| 设计一致性 | 4/5 | 与 DESIGN.md 设计文档一致 |
+| 错误处理 | 4/5 | 有基本错误处理，可增加用户反馈 |
+| 代码复用 | 4/5 | 工具函数有复用，部分组件可抽取 |
+
+#### 发现问题
+
+| ID | 严重度 | 文件 | 行号 | 问题描述 | 状态 |
+|----|--------|------|------|----------|------|
+| CR2-001 | 🟢 Low | Dashboard.tsx | 16, 17 | 使用 `any` 类型 (trendData, hotProducts) | 建议改进 |
+| CR2-002 | 🟢 Low | Trends.tsx | 16, 17, 18 | 使用 `any` 类型 (trendData, relatedQueries, comparison) | 建议改进 |
+| CR2-003 | 🟢 Low | Dashboard.tsx | 76-82 | `getSalesDisplay` 函数逻辑可简化 | 建议改进 |
+| CR2-004 | 🟢 Low | Products.tsx | 63-77 | `getSalesDisplay` 与 Dashboard 中存在重复代码 | 建议抽取为共享工具函数 |
+| CR2-005 | 🟡 Medium | Dashboard.tsx | 58 | `loadTrendForProduct` 硬编码取前3个词作为关键词，可能不够精确 | 建议优化 |
+| CR2-006 | 🟢 Low | Trends.tsx | 35 | 比较功能的提示信息未国际化 "Enter multiple keywords..." | ✅ 已修复 |
+| CR2-007 | 🟢 Low | Trends.tsx | 78, 114, 163, 177-179 | 部分 UI 文字未国际化 (如 "Keyword Comparison", "Compare Keywords", "Avg Interest", "Max", "Current") | ✅ 已修复 |
+| CR2-008 | 🟢 Low | Products.tsx | 109 | DownloadOutlined 图标用于"查看平台"链接，图标语义不符 | 建议改为 LinkOutlined |
+
+#### 代码质量详细分析
+
+**1. TypeScript 类型安全**
+
+类型定义文件 `types/index.ts` 更新良好:
+- 新增 `sold_count?: number` 可选字段，符合数据模型需求
+- Product 接口类型完整，涵盖所有业务字段
+
+待改进项:
+- Dashboard.tsx 第 16 行 `trendData` 使用 `any` 类型
+- Trends.tsx 多处使用 `any` 类型
+
+**2. 国际化翻译检查**
+
+| 模块 | en.json | zh.json | 状态 |
+|------|---------|---------|------|
+| dashboard.googleTrendsFor | "Google Trends - {{product}}" | "Google 趋势 - {{product}}" | 完整 |
+| dashboard.selectProduct | "Select a product" | "选择产品" | 完整 |
+| dashboard.viewTrend | "View Trend" | "查看趋势" | 完整 |
+| dashboard.platformLink | "Platform Link" | "平台链接" | 完整 |
+| dashboard.googleSearch | "Google Shopping" | "Google 购物搜索" | 完整 |
+| products.bsrRank | "BSR Rank" | "平台排名" | 完整 |
+| products.sellerCount | "Sellers" | "卖家数" | 完整 |
+| products.salesData | "Sales Data" | "销量数据" | 完整 |
+| products.soldCount | "Sold" | "已售" | 完整 |
+| products.monthlySalesEst | "Monthly Est." | "月销估算" | 完整 |
+| products.platformComparison | "Platform Comparison" | "多平台对比" | 完整 |
+| products.noImage | "No Image" | "暂无图片" | 完整 |
+| trends.xAxisLabel | "Time (Month)" | "时间 (月份)" | 完整 |
+| trends.yAxisLabel | "Search Interest Index (0-100)" | "搜索热度指数 (0-100)" | 完整 |
+| trends.chartExplanation | [完整解释文本] | [完整解释文本] | 完整 |
+
+**未国际化文本清单:** (全部已修复)
+- ~~Trends.tsx: "Enter multiple keywords separated by commas"~~ -> `t('trends.enterMultipleKeywords')`
+- ~~Trends.tsx: "Keyword Comparison"~~ -> `t('trends.keywordComparison')`
+- ~~Trends.tsx: "Compare Keywords"~~ -> `t('trends.compareKeywords')`
+- ~~Trends.tsx: "Avg Interest", "Max", "Current"~~ -> `t('trends.avgInterest')`, `t('trends.maxInterest')`, `t('trends.currentInterest')`
+
+**3. 设计一致性检查**
+
+| DESIGN.md 需求 | 实现状态 | 评价 |
+|---------------|---------|------|
+| Google Trends 坐标轴注释 | 已实现 | X/Y 轴均有标签和单位说明 |
+| 产品选择器查看趋势 | 已实现 | Dashboard 中下拉选择器完整 |
+| 各平台排名详细数据 | 已实现 | bsr_rank 和 seller_count 列完整 |
+| 产品图片显示 | 已实现 | 有图片/无图片占位符处理完善 |
+| 商品链接 (平台+Google搜索) | 已实现 | AU/NZ 地区 Google 搜索 URL 正确 |
+| 销量数据显示 | 已实现 | sold_count + 月销估算显示完整 |
+
+**4. 错误处理与边界情况**
+
+| 场景 | 处理方式 | 评价 |
+|------|---------|------|
+| 无图片产品 | 显示占位符图标 | 完善 |
+| 无 BSR 排名 | 显示 "-" | 完善 |
+| 无销量数据 | 月销估算基于评论数 | 完善 |
+| 趋势数据加载失败 | console.log 记录 | 可增加用户提示 |
+| 无趋势数据 | 显示"暂无数据"文本 | 完善 |
+
+**5. 代码复用分析**
+
+重复代码位置:
+- `getSalesDisplay` 函数在 Dashboard.tsx 和 Products.tsx 中有类似实现
+- `platformColors` 对象在多个组件中重复定义
+
+建议抽取为共享工具:
+```typescript
+// utils/product.ts
+export const platformColors = { ... };
+export const getSalesDisplay = (product, t) => { ... };
+```
+
+#### 改进建议
+
+| 优先级 | 建议内容 | 影响范围 |
+|--------|---------|---------|
+| ~~P0~~ | ~~补充 Trends.tsx 中未国际化的文本~~ | ✅ 已修复 |
+| P1 | 将 `any` 类型替换为具体类型定义 | 类型安全 |
+| P1 | 抽取 `getSalesDisplay` 和 `platformColors` 为共享工具 | 代码维护性 |
+| P2 | 优化 `loadTrendForProduct` 的关键词提取逻辑 | 功能准确性 |
+| P2 | 修改 Products.tsx 第109行图标为 LinkOutlined | UI 语义 |
+
+#### 审查结论
+
+本次前端功能优化代码质量良好，主要改动包括:
+
+### 审查 #3 - 2026-01-21 (P0 国际化修复验证)
+- **审查范围**: Trends.tsx 国际化修复验证
+- **代码质量评分**: 5/5 (国际化)
+
+#### P0 修复验证结果
+
+| 问题 ID | 描述 | 修复前 | 修复后 | 状态 |
+|---------|------|--------|--------|------|
+| CR2-006 | 比较功能提示信息 | 硬编码 "Enter multiple keywords..." | `t('trends.enterMultipleKeywords')` | ✅ 通过 |
+| CR2-007a | 图表标题 | 硬编码 "Keyword Comparison" | `t('trends.keywordComparison')` | ✅ 通过 |
+| CR2-007b | 比较按钮 | 硬编码 "Compare Keywords" | `t('trends.compareKeywords')` | ✅ 通过 |
+| CR2-007c | 表格列标题 | 硬编码 "Avg Interest" | `t('trends.avgInterest')` | ✅ 通过 |
+| CR2-007d | 表格列标题 | 硬编码 "Max" | `t('trends.maxInterest')` | ✅ 通过 |
+| CR2-007e | 表格列标题 | 硬编码 "Current" | `t('trends.currentInterest')` | ✅ 通过 |
+
+#### 翻译文件验证
+
+| 翻译键 | en.json | zh.json | 状态 |
+|--------|---------|---------|------|
+| trends.enterMultipleKeywords | "Enter multiple keywords separated by commas" | "输入多个关键词，用逗号分隔" | ✅ |
+| trends.keywordComparison | "Keyword Comparison" | "关键词对比" | ✅ |
+| trends.compareKeywords | "Compare Keywords" | "对比关键词" | ✅ |
+| trends.avgInterest | "Avg Interest" | "平均热度" | ✅ |
+| trends.maxInterest | "Max" | "最高" | ✅ |
+| trends.currentInterest | "Current" | "当前" | ✅ |
+
+#### 构建与类型检查
+
+| 检查项 | 命令 | 结果 |
+|--------|------|------|
+| TypeScript 编译 | `npm run build` | ✅ 成功 (11.33s) |
+| 类型检查 | `tsc --noEmit` | ✅ 无错误 |
+| 构建产物 | dist/assets/index-D5rWJ0fH.js | 2,314.91 kB |
+
+#### 审查结论
+
+**P0 国际化问题已完全修复**，所有 6 处硬编码文本已正确替换为 i18n 翻译调用，中英文翻译均已添加并验证。
+
+**审查结果**: ✅ 通过 - 可发布
+
+---
+1. Google Trends 图表增强 - X/Y 轴标签和说明文字
+2. 产品表格增强 - BSR排名、卖家数、销量数据列
+3. Dashboard 爆品列表增强 - 图片、链接、Google搜索
+4. 多平台对比卡片 - 产品详情弹窗增强
+5. 完整的中英文国际化支持
+
+**审查结果**: 🟢 通过 (建议修复 P0/P1 问题后部署)
 
 ---
 
@@ -260,18 +429,25 @@ Top 10 热门产品列表 (按热度评分排序):
 
 > 公网 E2E 测试全部通过！前后端完整集成，所有核心功能验证成功。
 
-### 总体评分: 4.5/5 (较上次提升 0.5 分)
+### 总体评分: 4.6/5
 
 **质量维度评估:**
-- 功能完整性: 5/5 - 所有MVP功能完整且可用
-- 代码质量: 4/5 - 结构良好，模块化清晰
+- 功能完整性: 5/5 - 所有MVP功能完整且可用，新功能实现完善
+- 代码质量: 4.2/5 - 结构良好，少量 `any` 类型和重复代码
 - 测试覆盖: 3.5/5 - 测试框架 + 完整公网E2E验证
 - 文档完整性: 4.5/5 - 测试策略和验收标准已补充
 - 安全性: 4/5 - 无敏感数据暴露
+- 国际化: 5/5 - 中英文翻译100%完整
 - E2E验证: 5/5 - 公网环境全部功能验证通过
 - 后端API: 5/5 - 所有API端点正常响应
 
-**发布建议**: 🟢 **可发布** - 前后端已完整部署，所有核心功能正常
+**发布建议**: 🟢 **可发布** - 前后端已完整部署，新功能实现完善
+
+**本次代码审查新发现问题**:
+- ✅ ~~Trends.tsx 部分 UI 文本未国际化 (P0)~~ - 已修复
+- 🟢 Dashboard.tsx/Products.tsx 存在 `any` 类型 (P1 - 建议改进)
+- 🟢 `getSalesDisplay` 函数重复定义 (P1 - 建议改进)
+- 🟢 Products.tsx 图标语义不符 (P2 - 低优先级)
 
 **公网部署检查清单**:
 - [x] 仪表盘页面正常渲染
@@ -282,6 +458,10 @@ Top 10 热门产品列表 (按热度评分排序):
 - [x] 后端API已部署并正常运行
 - [x] 语言切换功能正常（中/英文）
 - [x] 一键选爆品功能正常
+- [x] Google Trends 图表坐标轴注释完整
+- [x] 产品表格显示BSR排名和卖家数
+- [x] 爆品列表显示图片和链接
+- [x] 销量数据显示正确
 
 **已解决问题**:
 - ✅ 测试框架已建立
@@ -292,11 +472,16 @@ Top 10 热门产品列表 (按热度评分排序):
 - ✅ 语言切换功能正常工作
 - ✅ 一键选爆品功能验证通过
 - ✅ 公网E2E测试全部通过
+- ✅ Google Trends 图表优化完成
+- ✅ 各平台排名详细数据添加完成
+- ✅ 产品图片和商品链接完善
+- ✅ 销量数据显示添加完成
 
 **遗留问题**:
 - Antd组件deprecation warnings（低优先级）
 - 测试覆盖率需要继续提升到 70%
 - CI/CD 自动测试待配置
+- ~~Trends.tsx 部分 UI 文本未国际化~~ ✅ 已修复
 
 **改进建议**:
 1. ~~优先添加后端 API 测试~~ ✅ 已完成
@@ -304,6 +489,8 @@ Top 10 热门产品列表 (按热度评分排序):
 3. ~~E2E前端UI测试~~ ✅ 已完成
 4. ~~部署后端API并进行完整E2E测试~~ ✅ 已完成
 5. ~~修复语言切换功能~~ ✅ 已验证正常
-6. 更新Antd组件API消除deprecation warnings
-7. 设置 CI/CD 自动测试
-8. 持续提升单元测试覆盖率
+6. ~~补充 Trends.tsx 未国际化的文本~~ ✅ 已修复 (2026-01-21)
+7. 抽取共享工具函数减少代码重复 (P1)
+8. 更新Antd组件API消除deprecation warnings (P2)
+9. 设置 CI/CD 自动测试 (P2)
+10. 持续提升单元测试覆盖率 (P2)

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Card, Input, Select, Button, Row, Col, Tag, Table, message, Space } from 'antd';
-import { SearchOutlined, GlobalOutlined } from '@ant-design/icons';
+import { Card, Input, Select, Button, Row, Col, Tag, Table, message, Space, Alert } from 'antd';
+import { SearchOutlined, GlobalOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useTranslation } from 'react-i18next';
 import { trendsApi } from '../services/api';
@@ -32,7 +32,7 @@ const Trends = () => {
   };
 
   const handleCompare = async () => {
-    if (!keyword.includes(',')) { message.warning('Enter multiple keywords separated by commas'); return; }
+    if (!keyword.includes(',')) { message.warning(t('trends.enterMultipleKeywords')); return; }
     setLoading(true);
     try {
       const data = await trendsApi.compare(keyword, region);
@@ -49,9 +49,24 @@ const Trends = () => {
     return {
       title: { text: t('trends.interestOverTime'), left: 'center' },
       tooltip: { trigger: 'axis' },
-      xAxis: { type: 'category', data: dates, axisLabel: { rotate: 45 } },
-      yAxis: { type: 'value', name: 'Interest', max: 100 },
+      xAxis: {
+        type: 'category',
+        data: dates,
+        axisLabel: { rotate: 45 },
+        name: t('trends.xAxisLabel'),
+        nameLocation: 'middle',
+        nameGap: 35
+      },
+      yAxis: {
+        type: 'value',
+        name: t('trends.yAxisLabel'),
+        max: 100,
+        nameLocation: 'middle',
+        nameGap: 50,
+        nameRotate: 90
+      },
       series: [{ name: kw, type: 'line', data: values, smooth: true, areaStyle: { opacity: 0.3 }, itemStyle: { color: '#1890ff' } }],
+      grid: { left: 80, right: 20, bottom: 60, top: 60 }
     };
   };
 
@@ -60,11 +75,19 @@ const Trends = () => {
     const keywords = comparison.comparison.map((c: any) => c.keyword);
     const values = comparison.comparison.map((c: any) => c.average_interest);
     return {
-      title: { text: 'Keyword Comparison', left: 'center' },
+      title: { text: t('trends.keywordComparison'), left: 'center' },
       tooltip: { trigger: 'axis' },
       xAxis: { type: 'category', data: keywords },
-      yAxis: { type: 'value', name: 'Average Interest' },
+      yAxis: {
+        type: 'value',
+        name: t('trends.yAxisLabel'),
+        nameLocation: 'middle',
+        nameGap: 50,
+        nameRotate: 90,
+        max: 100
+      },
       series: [{ type: 'bar', data: values, itemStyle: { color: '#52c41a' } }],
+      grid: { left: 80, right: 20, bottom: 30, top: 60 }
     };
   };
 
@@ -88,7 +111,7 @@ const Trends = () => {
           <Col span={6}>
             <Space>
               <Button onClick={handleSearch} type="primary" loading={loading}>{t('trends.analyze')}</Button>
-              <Button onClick={handleCompare} loading={loading}>Compare Keywords</Button>
+              <Button onClick={handleCompare} loading={loading}>{t('trends.compareKeywords')}</Button>
             </Space>
           </Col>
         </Row>
@@ -98,7 +121,15 @@ const Trends = () => {
         <Col span={16}>
           <Card title={t('trends.interestOverTime')}>
             {trendData?.data?.length ? (
-              <ReactECharts option={getChartOption()} style={{ height: 400 }} />
+              <>
+                <ReactECharts option={getChartOption()} style={{ height: 400 }} />
+                <Alert
+                  message={<><InfoCircleOutlined style={{ marginRight: 8 }} />{t('trends.chartExplanation')}</>}
+                  type="info"
+                  style={{ marginTop: 16 }}
+                  showIcon={false}
+                />
+              </>
             ) : (
               <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>
                 {t('trends.noData')}
@@ -129,17 +160,23 @@ const Trends = () => {
       </Row>
 
       {comparison && (
-        <Card title="Keyword Comparison" style={{ marginTop: 16 }}>
+        <Card title={t('trends.keywordComparison')} style={{ marginTop: 16 }}>
           <Row gutter={16}>
             <Col span={12}>
               <ReactECharts option={getCompareChartOption()} style={{ height: 300 }} />
+              <Alert
+                message={<><InfoCircleOutlined style={{ marginRight: 8 }} />{t('trends.chartExplanation')}</>}
+                type="info"
+                style={{ marginTop: 8 }}
+                showIcon={false}
+              />
             </Col>
             <Col span={12}>
               <Table dataSource={comparison.comparison} rowKey="keyword" pagination={false} columns={[
                 { title: t('trends.keyword'), dataIndex: 'keyword', key: 'keyword' },
-                { title: 'Avg Interest', dataIndex: 'average_interest', key: 'avg', render: (v: number) => v.toFixed(1) },
-                { title: 'Max', dataIndex: 'max_interest', key: 'max' },
-                { title: 'Current', dataIndex: 'current_interest', key: 'current' },
+                { title: t('trends.avgInterest'), dataIndex: 'average_interest', key: 'avg', render: (v: number) => v.toFixed(1) },
+                { title: t('trends.maxInterest'), dataIndex: 'max_interest', key: 'max' },
+                { title: t('trends.currentInterest'), dataIndex: 'current_interest', key: 'current' },
               ]} />
             </Col>
           </Row>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Card, Input, Select, Button, Table, Tag, Space, Row, Col, message, Modal, Descriptions, Image } from 'antd';
-import { SearchOutlined, DownloadOutlined, EyeOutlined, FileAddOutlined } from '@ant-design/icons';
+import { Card, Input, Select, Button, Table, Tag, Space, Row, Col, message, Modal, Descriptions, Image, Divider } from 'antd';
+import { SearchOutlined, DownloadOutlined, EyeOutlined, FileAddOutlined, PictureOutlined, ShopOutlined, TrophyOutlined } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import { productsApi, reportsApi } from '../services/api';
 import type { Product, ProductSearchParams } from '../types';
@@ -60,17 +60,46 @@ const Products = () => {
     } catch (error) { message.error(t('products.reportFailed')); }
   };
 
+  const getSalesDisplay = (product: Product) => {
+    const monthlySalesEst = product.review_count ? product.review_count * 25 : 0;
+    if (product.sold_count) {
+      return (
+        <span>
+          <span style={{ color: '#52c41a' }}>{t('products.soldCount')}: {product.sold_count}</span>
+          <br />
+          <span style={{ color: '#666', fontSize: 11 }}>{t('products.monthlySalesEst')}: ~{monthlySalesEst}</span>
+        </span>
+      );
+    }
+    return monthlySalesEst > 0 ? (
+      <span style={{ color: '#666', fontSize: 12 }}>{t('products.monthlySalesEst')}: ~{monthlySalesEst}</span>
+    ) : '-';
+  };
+
   const columns = [
     { title: t('products.image'), dataIndex: 'image_url', key: 'image', width: 80,
-      render: (url: string) => <Image src={url} alt="Product" width={60} height={60} style={{ objectFit: 'cover' }} /> },
+      render: (url: string) => url ? (
+        <Image src={url} alt="Product" width={60} height={60} style={{ objectFit: 'cover' }} fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" />
+      ) : (
+        <div style={{ width: 60, height: 60, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <PictureOutlined style={{ color: '#bfbfbf', fontSize: 24 }} />
+        </div>
+      )
+    },
     { title: t('products.product'), dataIndex: 'title', key: 'title', ellipsis: true,
       render: (text: string, record: Product) => <a onClick={() => setSelectedProduct(record)}>{text}</a> },
     { title: t('products.platform'), dataIndex: 'platform', key: 'platform', width: 100,
       render: (platform: string) => <Tag color={platformColors[platform] || 'default'}>{platform.replace('_', ' ').toUpperCase()}</Tag> },
     { title: t('products.price'), dataIndex: 'price', key: 'price', width: 100,
       render: (price: number | string, record: Product) => price ? record.currency + ' ' + Number(price).toFixed(2) : '-' },
+    { title: t('products.bsrRank'), dataIndex: 'bsr_rank', key: 'bsr_rank', width: 90,
+      render: (rank: number) => rank ? <Tag color="gold"><TrophyOutlined /> #{rank}</Tag> : '-' },
+    { title: t('products.sellerCount'), dataIndex: 'seller_count', key: 'seller_count', width: 80,
+      render: (count: number) => count ? <span><ShopOutlined style={{ marginRight: 4 }} />{count}</span> : '-' },
+    { title: t('products.salesData'), key: 'sales', width: 130,
+      render: (_: any, record: Product) => getSalesDisplay(record) },
     { title: t('products.rating'), dataIndex: 'rating', key: 'rating', width: 80,
-      render: (rating: number | string) => rating ? '⭐ ' + Number(rating).toFixed(1) : '-' },
+      render: (rating: number | string) => rating ? Number(rating).toFixed(1) : '-' },
     { title: t('products.reviews'), dataIndex: 'review_count', key: 'reviews', width: 80 },
     { title: t('products.actions'), key: 'actions', width: 150,
       render: (_: any, record: Product) => (
@@ -81,6 +110,103 @@ const Products = () => {
         </Space>
       ) },
   ];
+
+  const renderPlatformComparisonCard = (product: Product) => {
+    const platforms = [
+      { key: 'ebay_au', name: 'eBay AU', color: '#1890ff' },
+      { key: 'ebay_nz', name: 'eBay NZ', color: '#52c41a' },
+      { key: 'amazon_au', name: 'Amazon AU', color: '#fa8c16' },
+      { key: 'trademe', name: 'TradeMe', color: '#722ed1' },
+    ];
+
+    const currentPlatform = platforms.find(p => p.key === product.platform);
+
+    return (
+      <Card
+        size="small"
+        title={<><ShopOutlined style={{ marginRight: 8 }} />{t('products.platformComparison')}</>}
+        style={{ marginTop: 16 }}
+      >
+        <Row gutter={16}>
+          {platforms.map(platform => {
+            const isCurrent = platform.key === product.platform;
+            return (
+              <Col span={6} key={platform.key}>
+                <div style={{
+                  padding: 12,
+                  border: `2px solid ${isCurrent ? platform.color : '#f0f0f0'}`,
+                  borderRadius: 8,
+                  background: isCurrent ? `${platform.color}10` : '#fafafa',
+                  textAlign: 'center'
+                }}>
+                  <div style={{
+                    fontWeight: 'bold',
+                    color: platform.color,
+                    marginBottom: 8
+                  }}>
+                    {platform.name}
+                  </div>
+                  {isCurrent ? (
+                    <>
+                      <div style={{ fontSize: 12, color: '#666' }}>
+                        <TrophyOutlined /> {t('products.bsrRank')}: {product.bsr_rank || '-'}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+                        <ShopOutlined /> {t('products.sellerCount')}: {product.seller_count || '-'}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 12, color: '#999' }}>
+                      {t('trends.noData')}
+                    </div>
+                  )}
+                </div>
+              </Col>
+            );
+          })}
+        </Row>
+      </Card>
+    );
+  };
+
+  const renderSalesDataCard = (product: Product) => {
+    const monthlySalesEst = product.review_count ? product.review_count * 25 : 0;
+
+    return (
+      <Card
+        size="small"
+        title={<><TrophyOutlined style={{ marginRight: 8 }} />{t('products.salesData')}</>}
+        style={{ marginTop: 16 }}
+      >
+        <Row gutter={24}>
+          <Col span={8}>
+            <div style={{ textAlign: 'center', padding: 12 }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>
+                {product.sold_count || '-'}
+              </div>
+              <div style={{ fontSize: 12, color: '#666' }}>{t('products.soldCount')}</div>
+            </div>
+          </Col>
+          <Col span={8}>
+            <div style={{ textAlign: 'center', padding: 12 }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>
+                ~{monthlySalesEst || '-'}
+              </div>
+              <div style={{ fontSize: 12, color: '#666' }}>{t('products.monthlySalesEst')}</div>
+            </div>
+          </Col>
+          <Col span={8}>
+            <div style={{ textAlign: 'center', padding: 12 }}>
+              <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fa8c16' }}>
+                {product.review_count || 0}
+              </div>
+              <div style={{ fontSize: 12, color: '#666' }}>{t('products.reviews')}</div>
+            </div>
+          </Col>
+        </Row>
+      </Card>
+    );
+  };
 
   return (
     <div style={{ padding: 24 }}>
@@ -121,24 +247,44 @@ const Products = () => {
         </Row>
       </Card>
       <Card title={t('products.results') + ' (' + products.length + ')'}>
-        <Table dataSource={products} columns={columns} rowKey="id" loading={loading}
+        <Table dataSource={products} columns={columns} rowKey="id" loading={loading} scroll={{ x: 1200 }}
           pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => t('products.totalProducts', { count: total }) }} />
       </Card>
-      <Modal title={t('products.productDetails')} open={!!selectedProduct} onCancel={() => setSelectedProduct(null)} width={700}
+      <Modal title={t('products.productDetails')} open={!!selectedProduct} onCancel={() => setSelectedProduct(null)} width={800}
         footer={[
           <Button key="close" onClick={() => setSelectedProduct(null)}>{t('products.close')}</Button>,
           <Button key="report" type="primary" onClick={() => { if (selectedProduct) handleGenerateReport(selectedProduct); setSelectedProduct(null); }}>{t('products.generateReport')}</Button>,
         ]}>
         {selectedProduct && (
-          <Descriptions bordered column={2}>
-            <Descriptions.Item label={t('products.product')} span={2}>{selectedProduct.title}</Descriptions.Item>
-            <Descriptions.Item label={t('products.platform')}><Tag color={platformColors[selectedProduct.platform]}>{selectedProduct.platform.toUpperCase()}</Tag></Descriptions.Item>
-            <Descriptions.Item label={t('products.price')}>{selectedProduct.price ? selectedProduct.currency + ' ' + Number(selectedProduct.price).toFixed(2) : '-'}</Descriptions.Item>
-            <Descriptions.Item label={t('products.rating')}>{selectedProduct.rating ? '⭐ ' + Number(selectedProduct.rating).toFixed(1) : '-'}</Descriptions.Item>
-            <Descriptions.Item label={t('products.reviews')}>{selectedProduct.review_count}</Descriptions.Item>
-            <Descriptions.Item label={t('products.category')} span={2}>{selectedProduct.category || '-'}</Descriptions.Item>
-            <Descriptions.Item label={t('products.link')} span={2}>{selectedProduct.product_url ? <a href={selectedProduct.product_url} target="_blank" rel="noreferrer">{t('products.viewOnPlatform')}</a> : '-'}</Descriptions.Item>
-          </Descriptions>
+          <>
+            <Row gutter={24}>
+              <Col span={8}>
+                {selectedProduct.image_url ? (
+                  <Image src={selectedProduct.image_url} alt="Product" style={{ width: '100%', borderRadius: 8 }} />
+                ) : (
+                  <div style={{ width: '100%', height: 200, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8 }}>
+                    <PictureOutlined style={{ fontSize: 48, color: '#bfbfbf' }} />
+                  </div>
+                )}
+              </Col>
+              <Col span={16}>
+                <Descriptions bordered column={2} size="small">
+                  <Descriptions.Item label={t('products.product')} span={2}>{selectedProduct.title}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.platform')}><Tag color={platformColors[selectedProduct.platform]}>{selectedProduct.platform.toUpperCase()}</Tag></Descriptions.Item>
+                  <Descriptions.Item label={t('products.price')}>{selectedProduct.price ? selectedProduct.currency + ' ' + Number(selectedProduct.price).toFixed(2) : '-'}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.bsrRank')}>{selectedProduct.bsr_rank ? <Tag color="gold">#{selectedProduct.bsr_rank}</Tag> : '-'}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.sellerCount')}>{selectedProduct.seller_count || '-'}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.rating')}>{selectedProduct.rating ? Number(selectedProduct.rating).toFixed(1) : '-'}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.reviews')}>{selectedProduct.review_count}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.category')} span={2}>{selectedProduct.category || '-'}</Descriptions.Item>
+                  <Descriptions.Item label={t('products.link')} span={2}>{selectedProduct.product_url ? <a href={selectedProduct.product_url} target="_blank" rel="noreferrer">{t('products.viewOnPlatform')}</a> : '-'}</Descriptions.Item>
+                </Descriptions>
+              </Col>
+            </Row>
+
+            {renderSalesDataCard(selectedProduct)}
+            {renderPlatformComparisonCard(selectedProduct)}
+          </>
         )}
       </Modal>
     </div>

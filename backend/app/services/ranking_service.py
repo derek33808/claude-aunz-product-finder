@@ -37,7 +37,7 @@ class RankingService:
     """
 
     # Version for tracking deployments
-    VERSION = "2.0.0-fix-supplier-query"
+    VERSION = "2.1.0-fix-data-extraction"
 
     # Scoring weights
     WEIGHTS = {
@@ -458,17 +458,17 @@ class RankingService:
         demand_score = sum(demand_scores) / len(demand_scores) if demand_scores else 50
 
         # === Calculate Trend Score (20%) ===
-        trend_info = trends_data.get(keyword, {})
-        trend_score = trend_info.get("average_interest", 50)
-        trend_direction = trend_info.get("trend_direction", "stable")
+        # Note: trends_data is already per-keyword data (passed from caller)
+        trend_score = trends_data.get("average_interest", 50)
+        trend_direction = trends_data.get("trend_direction", "stable")
 
         # Bonus for upward trend
         if trend_direction == "up":
             trend_score = min(100, trend_score * 1.2)
 
         # === Calculate Profit Score (25%) ===
-        supplier_info = supplier_data.get(keyword, {})
-        cost_price = supplier_info.get("avg_price", 0) or supplier_info.get("min_price", 0)
+        # Note: supplier_data is already per-keyword data (passed from caller)
+        cost_price = supplier_data.get("avg_price", 0) or supplier_data.get("min_price", 0)
 
         # Get market price (average from platforms)
         market_prices = []
@@ -533,12 +533,12 @@ class RankingService:
             "platform_stats": platform_stats,
             "trend_info": {
                 "direction": trend_direction,
-                "current_interest": trend_info.get("current_interest", 0),
+                "current_interest": trends_data.get("current_interest", 0),
             },
             "supplier_info": {
                 "cost_price_cny": cost_price,
-                "product_count": supplier_info.get("count", 0),
-                "top_product": supplier_info.get("products", [{}])[0] if supplier_info.get("products") else None,
+                "product_count": supplier_data.get("count", 0),
+                "top_product": supplier_data.get("products", [{}])[0] if supplier_data.get("products") else None,
             },
             "profit_analysis": {
                 "cost_cny": cost_price,

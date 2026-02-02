@@ -6,12 +6,14 @@ import {
   LineChartOutlined,
   FileTextOutlined,
   GlobalOutlined,
+  ShopOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
 import Dashboard from './pages/Dashboard';
 import Products from './pages/Products';
 import Reports from './pages/Reports';
 import Trends from './pages/Trends';
+import Suppliers from './pages/Suppliers';
 import './App.css';
 
 const { Header, Sider, Content } = Layout;
@@ -32,6 +34,7 @@ const AppLayout = () => {
   const menuItems = [
     { key: '/', icon: <DashboardOutlined />, label: <Link to="/">{t('nav.dashboard')}</Link> },
     { key: '/products', icon: <ShoppingOutlined />, label: <Link to="/products">{t('nav.products')}</Link> },
+    { key: '/suppliers', icon: <ShopOutlined />, label: <Link to="/suppliers">1688供应商</Link> },
     { key: '/trends', icon: <LineChartOutlined />, label: <Link to="/trends">{t('nav.trends')}</Link> },
     { key: '/reports', icon: <FileTextOutlined />, label: <Link to="/reports">{t('nav.reports')}</Link> },
   ];
@@ -40,6 +43,7 @@ const AppLayout = () => {
     switch (location.pathname) {
       case '/': return t('header.dashboard');
       case '/products': return t('header.productSearch');
+      case '/suppliers': return '1688供应商数据库';
       case '/trends': return t('header.googleTrends');
       case '/reports': return t('header.reports');
       default: return '';
@@ -75,6 +79,7 @@ const AppLayout = () => {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/products" element={<Products />} />
+            <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/trends" element={<Trends />} />
             <Route path="/reports" element={<Reports />} />
           </Routes>

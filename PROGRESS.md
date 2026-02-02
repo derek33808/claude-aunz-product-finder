@@ -1,6 +1,137 @@
 # AU/NZ 选品工具 - 开发进度
 
-## 当前状态: ✅ Phase 6 - 1688 供应商匹配功能开发完成
+## 当前状态: ✅ 1688 缓存方案已实现
+
+---
+
+## 2026-02-02 (1688 浏览器爬取 + 缓存方案实现)
+
+### 实现方案
+采用 **Claude in Chrome 浏览器自动化** 方案：
+1. 在用户已登录的浏览器中打开 1688 搜索页面
+2. 用户手动完成验证码（仅需一次）
+3. 使用 JavaScript 从页面提取产品数据
+4. 将数据保存到 Supabase 数据库
+5. 云端 API 从数据库缓存查询
+
+### 完成内容
+1. ✅ 创建本地爬虫脚本 `tools/scrape_1688.py`
+2. ✅ 创建 CDP 连接脚本 `tools/scrape_1688_cdp.py`
+3. ✅ 创建数据库迁移 `supabase/migrations/002_suppliers_1688.sql`
+4. ✅ 修改 API 支持缓存查询 `backend/app/api/routes/suppliers.py`
+5. ✅ 成功从 1688 搜索结果提取 **36 个蓝牙耳机供应商**
+6. ✅ 数据已保存到 Supabase `suppliers_1688` 表
+7. ✅ API 可以正常查询缓存数据
+
+### 数据库表结构
+```
+suppliers_1688:
+- id, title, price, product_url, image_url
+- sold_count, moq, search_keyword
+- is_small_medium, category
+- scraped_at, created_at, updated_at
+```
+
+### 使用方法
+**更新缓存数据**:
+1. 用 Claude in Chrome 打开 1688 搜索页面
+2. 手动完成验证码（如需要）
+3. 运行 JavaScript 提取脚本
+4. 使用 REST API 批量保存到 Supabase
+
+**API 查询**:
+```
+GET /api/1688/search?keyword=蓝牙耳机&max_price=100&use_cache=true
+```
+
+### 当前缓存数据
+- 关键词: 蓝牙耳机
+- 数量: 36 个供应商
+- 价格范围: ¥1 - ¥157
+- 爬取时间: 2026-02-02
+
+---
+
+## 2026-02-02 (Playwright Stealth 尝试)
+
+### 尝试内容
+1. ✅ 添加了 `playwright-stealth` 包
+2. ✅ 在页面创建后应用 `stealth_async(page)`
+3. ✅ 简化了选择器逻辑
+4. ✅ 添加了验证码页面检测
+
+### 测试结果
+- **Stealth 部分有效**: 首次测试时返回了一些数据（虽然是 similar_search 内容）
+- **仍被拦截**: 后续测试继续返回空数组，表明 1688 仍在检测自动化访问
+
+### 结论
+**Playwright Stealth 方案不够有效** - 1688 的反爬虫系统较为复杂：
+- 不仅检测浏览器指纹
+- 还检测 IP 来源（数据中心 IP vs 住宅 IP）
+- 可能有行为分析（请求频率、鼠标轨迹等）
+
+### 推荐的下一步方案
+
+**方案 1: 本地爬取 + 数据库缓存（推荐）**
+- 在本地浏览器（已登录）上运行爬虫脚本
+- 将结果存储到 Supabase 数据库
+- 云端 API 直接查询数据库
+- 优点：可靠、无需绕过反爬虫
+- 缺点：数据非实时，需要定期更新
+
+**方案 2: 住宅代理**
+- 使用住宅代理 IP（如 Bright Data、Oxylabs）
+- 成本：$10-50/月
+- 可能仍被检测
+
+**方案 3: 1688 开放平台 API**
+- 需要企业认证
+- 获取官方 API 权限
+- 最稳定但门槛高
+
+### 相关文件
+- `backend/app/services/alibaba1688_service.py` - 已添加 Stealth 支持
+- `backend/requirements.txt` - 已添加 playwright-stealth
+- 最新提交: `6fc6239`
+
+### 恢复工作时
+1. 读取此文件了解上下文
+2. 讨论选择哪个方案
+3. 如选择方案 1，需要设计本地爬取脚本和数据库表结构
+
+---
+
+## 历史: 2026-02-02 19:16 (1688 爬虫 Cookie 认证)
+
+### 当前问题
+**1688 触发验证码拦截** - 即使配置了登录 cookies，1688 仍检测到自动化访问
+
+日志显示：
+```
+[1688] Added 21 cookies from config
+[1688] Current URL: https://s.1688.com//selloffer/offer_search.htm/...
+[1688] Page title: 验证码拦截
+[1688] Page content sample: 亲，请拖动下方滑块完成验证
+[1688] Selector '.search-offer-item': found 0 items
+[1688] Extracted 0 suppliers
+```
+
+### 已完成
+1. ✅ 在 Render 环境变量中添加了 `ALIBABA_1688_COOKIES`（21个cookies）
+2. ✅ 后端代码已更新支持 cookie 注入 (`alibaba1688_service.py`)
+3. ✅ 更新了 DOM 选择器适配 2026 年 1688 页面结构
+   - 新增 `.search-offer-item` 选择器（本地验证有 65 个产品）
+   - 更新 `.title-text`, `[class*='price']` 等选择器
+4. ✅ 添加了调试日志输出（URL、页面标题、选择器结果）
+5. ✅ 本地 1688 页面（已登录）可以正常显示产品
+
+### 技术发现
+- 本地浏览器（已登录）：`.search-offer-item` 找到 65 个产品
+- 云端 Render（带cookies）：被重定向到验证码页面
+
+---
+
+## 历史状态: ✅ Phase 6 - 1688 供应商匹配功能开发完成
 
 ---
 

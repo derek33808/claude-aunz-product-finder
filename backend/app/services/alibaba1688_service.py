@@ -3,9 +3,20 @@
 import asyncio
 import re
 import math
-from typing import List, Optional, Tuple, Dict, Any
-from playwright.async_api import async_playwright, Browser, Page
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from pydantic import BaseModel
+
+# Playwright is optional - only required for actual scraping
+# In production without Playwright, the service returns mock/empty results
+PLAYWRIGHT_AVAILABLE = False
+try:
+    from playwright.async_api import async_playwright, Browser, Page
+    PLAYWRIGHT_AVAILABLE = True
+except ImportError:
+    # Playwright not installed - scraping will be disabled
+    async_playwright = None
+    Browser = None
+    Page = None
 
 
 # ============ Data Models ============
@@ -434,17 +445,23 @@ class Alibaba1688Scraper:
     DETAIL_URL = "https://detail.1688.com"
 
     def __init__(self):
-        self._browser: Optional[Browser] = None
+        self._browser = None
+        self._playwright = None
         self._request_count = 0
         self._max_requests_per_session = 50
 
-    async def _get_browser(self) -> Browser:
+    async def _get_browser(self):
         """Get or create browser instance."""
+        if not PLAYWRIGHT_AVAILABLE:
+            return None
+
         if self._browser is None or self._request_count >= self._max_requests_per_session:
             if self._browser:
                 await self._browser.close()
-            playwright = await async_playwright().start()
-            self._browser = await playwright.chromium.launch(
+            if self._playwright:
+                await self._playwright.stop()
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(
                 headless=True,
                 args=[
                     "--no-sandbox",
@@ -460,6 +477,9 @@ class Alibaba1688Scraper:
         if self._browser:
             await self._browser.close()
             self._browser = None
+        if self._playwright:
+            await self._playwright.stop()
+            self._playwright = None
 
     async def search_suppliers(
         self,
@@ -482,7 +502,15 @@ class Alibaba1688Scraper:
         Returns:
             List of supplier data
         """
+        # Check if Playwright is available
+        if not PLAYWRIGHT_AVAILABLE:
+            print("Playwright not available - scraping disabled. Returning empty results.")
+            return []
+
         browser = await self._get_browser()
+        if browser is None:
+            return []
+
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             viewport={"width": 1920, "height": 1080},
@@ -776,7 +804,15 @@ class Alibaba1688Scraper:
         Returns:
             Product details dict
         """
+        # Check if Playwright is available
+        if not PLAYWRIGHT_AVAILABLE:
+            print("Playwright not available - returning None for product details.")
+            return None
+
         browser = await self._get_browser()
+        if browser is None:
+            return None
+
         context = await browser.new_context(
             user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
             viewport={"width": 1920, "height": 1080},

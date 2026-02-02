@@ -21,9 +21,6 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     anthropic_api_key: str = ""
 
-    # 1688 Scraping
-    alibaba_1688_cookies: str = ""  # JSON string of cookies
-
     # Server
     host: str = "0.0.0.0"
     port: int = 8000

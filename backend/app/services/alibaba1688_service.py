@@ -586,8 +586,20 @@ class Alibaba1688Scraper:
             # Wait for content
             await asyncio.sleep(2)
 
+            # Debug: Log current URL and page title
+            current_url = page.url
+            page_title = await page.title()
+            print(f"[1688] Current URL: {current_url}")
+            print(f"[1688] Page title: {page_title}")
+
+            # Check if redirected to login
+            if "login" in current_url.lower() or "passport" in current_url.lower():
+                print("[1688] Warning: Redirected to login page - cookies may have expired")
+                return []
+
             # Extract suppliers
             suppliers = await self._extract_suppliers(page, limit, source_price, source_currency)
+            print(f"[1688] Extracted {len(suppliers)} suppliers")
 
             # Filter by price
             suppliers = [s for s in suppliers if filter_by_price(s, max_price)]
@@ -628,10 +640,14 @@ class Alibaba1688Scraper:
         items = []
         for selector in selectors:
             items = await page.query_selector_all(selector)
+            print(f"[1688] Selector '{selector}': found {len(items)} items")
             if items:
                 break
 
         if not items:
+            # Log page content sample for debugging
+            body_text = await page.evaluate("() => document.body ? document.body.innerText.slice(0, 500) : 'No body'")
+            print(f"[1688] No items found. Page content sample: {body_text[:200]}...")
             # Try to extract from page content directly
             return await self._extract_from_json(page, limit, source_price, source_currency)
 

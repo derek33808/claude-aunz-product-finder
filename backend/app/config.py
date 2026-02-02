@@ -27,7 +27,12 @@ class Settings(BaseSettings):
     debug: bool = True
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://aunz-product-finder.netlify.app",
+        "https://*.netlify.app",
+    ]
 
     class Config:
         env_file = ".env"

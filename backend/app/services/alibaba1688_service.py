@@ -660,34 +660,25 @@ class Alibaba1688Scraper:
 
         items = []
         used_selector = None
+
+        # Simple approach: use first selector that finds items
         for selector in selectors:
             try:
                 found_items = await page.query_selector_all(selector)
                 print(f"[1688] Selector '{selector}': found {len(found_items)} items")
-                if found_items and len(found_items) >= 1:
-                    # Check if any item has a valid product link
-                    for test_item in found_items[:3]:
-                        # Look for any link with numeric offer ID
-                        all_links = await test_item.query_selector_all("a[href*='1688.com']")
-                        for link in all_links:
-                            href = await link.get_attribute("href") or ""
-                            if "detail.1688.com/offer" in href and "similar_search" not in href:
-                                items = found_items
-                                used_selector = selector
-                                print(f"[1688] Using selector '{selector}' with valid product links")
-                                break
-                        if items:
-                            break
-                    if items:
-                        break
+                if found_items:
+                    items = found_items
+                    used_selector = selector
+                    print(f"[1688] Using selector '{selector}'")
+                    break
             except Exception as e:
                 print(f"[1688] Selector '{selector}' error: {e}")
                 continue
 
-        # If no valid selector found, try fallback with first available items
+        # Additional fallback: try to find any product cards
         if not items:
-            print("[1688] No valid selector found, trying fallback extraction")
-            for selector in selectors:
+            fallback_selectors = [".card", "[class*='offer']", "[class*='product']", "a[href*='detail']"]
+            for selector in fallback_selectors:
                 try:
                     items = await page.query_selector_all(selector)
                     if items:

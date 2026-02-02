@@ -520,11 +520,41 @@ class Alibaba1688Scraper:
             return []
 
         context = await browser.new_context(
-            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
             viewport={"width": 1920, "height": 1080},
             locale="zh-CN",
+            timezone_id="Asia/Shanghai",
+            geolocation={"longitude": 121.4737, "latitude": 31.2304},  # Shanghai
+            permissions=["geolocation"],
         )
+
+        # Add stealth scripts to avoid detection
         page = await context.new_page()
+        await page.add_init_script("""
+            // Override webdriver detection
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+
+            // Override chrome detection
+            window.chrome = { runtime: {} };
+
+            // Override permissions
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+
+            // Override plugins
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
+
+            // Override languages
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['zh-CN', 'zh', 'en'],
+            });
+        """)
 
         try:
             # Build search URL with price filter
@@ -542,22 +572,40 @@ class Alibaba1688Scraper:
             url = f"{search_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
 
             # Navigate with retry
+            print(f"[1688] Navigating to: {url}")
             for attempt in range(3):
                 try:
-                    await page.goto(url, wait_until="networkidle", timeout=30000)
+                    await page.goto(url, wait_until="domcontentloaded", timeout=60000)
                     break
                 except Exception as e:
+                    print(f"[1688] Navigation attempt {attempt + 1} failed: {e}")
                     if attempt == 2:
                         raise
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(3)
 
             self._request_count += 1
 
-            # Wait for content
-            await asyncio.sleep(2)
+            # Wait for content to load
+            await asyncio.sleep(3)
+
+            # Check page title for debugging
+            title = await page.title()
+            print(f"[1688] Page title: {title}")
+
+            # Check if we hit a captcha or login page
+            page_content = await page.content()
+            if "验证" in page_content or "登录" in page_content or "captcha" in page_content.lower():
+                print("[1688] WARNING: Detected captcha or login page!")
+                # Try to get a screenshot for debugging
+                try:
+                    await page.screenshot(path="/tmp/1688_debug.png")
+                    print("[1688] Debug screenshot saved to /tmp/1688_debug.png")
+                except:
+                    pass
 
             # Extract suppliers
             suppliers = await self._extract_suppliers(page, limit, source_price, source_currency)
+            print(f"[1688] Found {len(suppliers)} suppliers")
 
             # Filter by price
             suppliers = [s for s in suppliers if filter_by_price(s, max_price)]
@@ -587,19 +635,36 @@ class Alibaba1688Scraper:
         """Extract supplier data from search results page."""
         suppliers = []
 
-        # Try different selectors for 1688 search results
+        # Try different selectors for 1688 search results (updated for 2024/2025)
         selectors = [
+            # New 1688 selectors
+            "div[class*='offer-item']",
+            "div[class*='offeritem']",
+            "div[class*='card-container']",
+            ".J_ShopCard",
             ".offer-list-row",
             ".sm-offer-item",
             "[data-tracklog]",
             ".space-offer-card-box",
+            # Generic product card selectors
+            "div[class*='product']",
+            "div[class*='item-content']",
+            "a[href*='detail.1688.com']",
         ]
 
         items = []
         for selector in selectors:
-            items = await page.query_selector_all(selector)
-            if items:
-                break
+            try:
+                items = await page.query_selector_all(selector)
+                if items and len(items) > 0:
+                    print(f"[1688] Found {len(items)} items with selector: {selector}")
+                    break
+            except Exception as e:
+                print(f"[1688] Selector {selector} failed: {e}")
+                continue
+
+        if not items:
+            print("[1688] No items found with any selector, trying page evaluation...")
 
         if not items:
             # Try to extract from page content directly

@@ -606,6 +606,15 @@ class Alibaba1688Scraper:
             print(f"[1688] Current URL: {current_url}")
             print(f"[1688] Page title: {page_title}")
 
+            # Get page content sample for debugging
+            body_sample = await page.evaluate("() => document.body ? document.body.innerText.slice(0, 300) : 'No body'")
+            print(f"[1688] Page content sample: {body_sample[:200]}...")
+
+            # Check for CAPTCHA/verification page
+            if "验证码" in page_title or "滑块" in body_sample or "验证" in body_sample[:100]:
+                print("[1688] CAPTCHA/verification page detected - stealth may not be working")
+                return []
+
             # Check if redirected to login
             if "login" in current_url.lower() or "passport" in current_url.lower():
                 print("[1688] Warning: Redirected to login page - cookies may have expired")

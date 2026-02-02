@@ -144,9 +144,13 @@ async def debug_1688_scraper(
     Returns detailed information about the scraping process.
     """
     from app.services.alibaba1688_service import PLAYWRIGHT_AVAILABLE
+    from app.config import settings
+    import json
 
     debug_info = {
         "playwright_available": PLAYWRIGHT_AVAILABLE,
+        "cookies_configured": bool(settings.alibaba_1688_cookies),
+        "cookies_count": 0,
         "browser_launched": False,
         "page_loaded": False,
         "page_title": None,
@@ -158,6 +162,14 @@ async def debug_1688_scraper(
         "items_found": 0,
         "error": None,
     }
+
+    # Check cookies count
+    if settings.alibaba_1688_cookies:
+        try:
+            cookies = json.loads(settings.alibaba_1688_cookies)
+            debug_info["cookies_count"] = len(cookies)
+        except:
+            debug_info["cookies_count"] = -1  # Invalid JSON
 
     if not PLAYWRIGHT_AVAILABLE:
         debug_info["error"] = "Playwright not available"
@@ -181,6 +193,31 @@ async def debug_1688_scraper(
                     viewport={"width": 1920, "height": 1080},
                     locale="zh-CN",
                 )
+
+                # Add cookies from config if available
+                if settings.alibaba_1688_cookies:
+                    try:
+                        cookies = json.loads(settings.alibaba_1688_cookies)
+                        formatted_cookies = []
+                        for cookie in cookies:
+                            formatted_cookie = {
+                                "name": cookie.get("name", ""),
+                                "value": cookie.get("value", ""),
+                                "domain": cookie.get("domain", ".1688.com"),
+                                "path": cookie.get("path", "/"),
+                            }
+                            if cookie.get("expires"):
+                                formatted_cookie["expires"] = cookie["expires"]
+                            if cookie.get("httpOnly") is not None:
+                                formatted_cookie["httpOnly"] = cookie["httpOnly"]
+                            if cookie.get("secure") is not None:
+                                formatted_cookie["secure"] = cookie["secure"]
+                            if cookie.get("sameSite"):
+                                formatted_cookie["sameSite"] = cookie["sameSite"]
+                            formatted_cookies.append(formatted_cookie)
+                        await context.add_cookies(formatted_cookies)
+                    except Exception as e:
+                        debug_info["error"] = f"Cookie error: {e}"
 
                 page = await context.new_page()
 

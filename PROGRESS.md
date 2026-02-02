@@ -205,13 +205,34 @@
 
 | 服务 | 状态 | 备注 |
 |------|------|------|
-| **前端 (Netlify)** | ✅ 已部署 | commit: bffb1fe |
-| **后端 (Render)** | ⏳ 待部署 | 需手动触发部署 |
-| **GitHub** | ✅ 已推送 | 代码已更新 |
+| **前端 (Netlify)** | ✅ 已部署 | https://claude-aunz-product-finder.netlify.app |
+| **后端 (Render)** | ✅ 已部署 | https://claude-aunz-product-finder.onrender.com |
+| **GitHub** | ✅ 已推送 | commit: b6661e2 |
+
+### Render 部署修复记录 (2026-02-02)
+
+**问题**: 原始部署失败，错误: `ModuleNotFoundError: No module named 'playwright'`
+
+**修复方案**:
+1. ✅ 修复 Playwright 导入问题 (commit: 58e1e68)
+   - 将 `from playwright.async_api import ...` 改为可选导入
+   - 添加 `PLAYWRIGHT_AVAILABLE` 标志
+   - 当 Playwright 不可用时返回空结果而非报错
+2. ✅ 添加 Netlify 域名到 CORS 配置 (commit: b6661e2)
+
+**部署验证**:
+- ✅ `/` - 返回 API 信息
+- ✅ `/health` - 返回 `{"status":"healthy"}`
+- ✅ `/api/suppliers/exchange-rates` - 返回汇率数据
+- ✅ `/api/suppliers/translate` - 关键词翻译正常工作
+
+**注意事项**:
+- Render 免费层会在不活动后休眠，首次请求可能需要 ~50 秒启动
+- 1688 爬虫功能在生产环境暂不可用（Playwright 未安装），但 API 不会报错
+- 产品 API (`/api/products/*`) 需要 Supabase 环境变量配置
 
 ### 下一步
-- [ ] 在 Render 控制台手动触发后端重新部署
-- [ ] 线上 E2E 验证
+- [ ] 配置 Render 环境变量 (Supabase 连接)
 - [ ] 用户验收测试
 - [ ] 根据反馈优化
 

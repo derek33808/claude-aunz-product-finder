@@ -460,16 +460,24 @@ class Alibaba1688Scraper:
                 await self._browser.close()
             if self._playwright:
                 await self._playwright.stop()
-            self._playwright = await async_playwright().start()
-            self._browser = await self._playwright.chromium.launch(
-                headless=True,
-                args=[
-                    "--no-sandbox",
-                    "--disable-setuid-sandbox",
-                    "--disable-blink-features=AutomationControlled",
-                ],
-            )
-            self._request_count = 0
+            try:
+                self._playwright = await async_playwright().start()
+                self._browser = await self._playwright.chromium.launch(
+                    headless=True,
+                    args=[
+                        "--no-sandbox",
+                        "--disable-setuid-sandbox",
+                        "--disable-blink-features=AutomationControlled",
+                    ],
+                )
+                self._request_count = 0
+            except Exception as e:
+                # Browser binary not found or launch failed
+                print(f"Failed to launch browser: {e}")
+                print("Playwright browsers may not be installed. Run: playwright install chromium")
+                self._playwright = None
+                self._browser = None
+                return None
         return self._browser
 
     async def close(self):

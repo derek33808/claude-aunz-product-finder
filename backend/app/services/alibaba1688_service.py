@@ -3,8 +3,11 @@
 import asyncio
 import re
 import math
+import json
 from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from pydantic import BaseModel
+
+from app.config import settings
 
 # Playwright is optional - only required for actual scraping
 # In production without Playwright, the service returns mock/empty results
@@ -524,6 +527,33 @@ class Alibaba1688Scraper:
             viewport={"width": 1920, "height": 1080},
             locale="zh-CN",
         )
+
+        # Add cookies from config if available
+        if settings.alibaba_1688_cookies:
+            try:
+                cookies = json.loads(settings.alibaba_1688_cookies)
+                formatted_cookies = []
+                for cookie in cookies:
+                    formatted_cookie = {
+                        "name": cookie.get("name", ""),
+                        "value": cookie.get("value", ""),
+                        "domain": cookie.get("domain", ".1688.com"),
+                        "path": cookie.get("path", "/"),
+                    }
+                    if cookie.get("expires"):
+                        formatted_cookie["expires"] = cookie["expires"]
+                    if cookie.get("httpOnly") is not None:
+                        formatted_cookie["httpOnly"] = cookie["httpOnly"]
+                    if cookie.get("secure") is not None:
+                        formatted_cookie["secure"] = cookie["secure"]
+                    formatted_cookies.append(formatted_cookie)
+                await context.add_cookies(formatted_cookies)
+                print(f"[1688] Added {len(formatted_cookies)} cookies from config")
+            except json.JSONDecodeError as e:
+                print(f"[1688] Warning: Failed to parse cookies JSON: {e}")
+            except Exception as e:
+                print(f"[1688] Warning: Failed to add cookies: {e}")
+
         page = await context.new_page()
 
         try:

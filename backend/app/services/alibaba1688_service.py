@@ -12,6 +12,7 @@ from app.config import settings
 # Playwright is optional - only required for actual scraping
 # In production without Playwright, the service returns mock/empty results
 PLAYWRIGHT_AVAILABLE = False
+STEALTH_AVAILABLE = False
 try:
     from playwright.async_api import async_playwright, Browser, Page
     PLAYWRIGHT_AVAILABLE = True
@@ -20,6 +21,14 @@ except ImportError:
     async_playwright = None
     Browser = None
     Page = None
+
+# Stealth plugin to bypass bot detection
+try:
+    from playwright_stealth import stealth_async
+    STEALTH_AVAILABLE = True
+except ImportError:
+    stealth_async = None
+    print("[1688] Warning: playwright-stealth not installed, bot detection bypass disabled")
 
 
 # ============ Data Models ============
@@ -556,6 +565,11 @@ class Alibaba1688Scraper:
 
         page = await context.new_page()
 
+        # Apply stealth to bypass bot detection
+        if STEALTH_AVAILABLE and stealth_async:
+            await stealth_async(page)
+            print("[1688] Stealth mode applied")
+
         try:
             # Build search URL with price filter
             search_url = f"{self.BASE_URL}/selloffer/offer_search.htm"
@@ -874,6 +888,10 @@ class Alibaba1688Scraper:
             locale="zh-CN",
         )
         page = await context.new_page()
+
+        # Apply stealth to bypass bot detection
+        if STEALTH_AVAILABLE and stealth_async:
+            await stealth_async(page)
 
         try:
             url = f"{self.DETAIL_URL}/offer/{offer_id}.html"

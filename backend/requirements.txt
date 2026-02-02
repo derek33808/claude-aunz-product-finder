@@ -65,6 +65,7 @@ yarl==1.22.0
 
 # Browser automation for 1688 scraping
 playwright==1.49.1
+playwright-stealth==1.0.6
 
 # Testing dependencies
 pytest==8.3.5

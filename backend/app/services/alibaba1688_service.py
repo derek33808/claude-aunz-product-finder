@@ -629,8 +629,9 @@ class Alibaba1688Scraper:
         """Extract supplier data from search results page."""
         suppliers = []
 
-        # Try different selectors for 1688 search results
+        # Try different selectors for 1688 search results (updated 2026)
         selectors = [
+            ".search-offer-item",  # New 2026 selector
             ".offer-list-row",
             ".sm-offer-item",
             "[data-tracklog]",
@@ -710,21 +711,21 @@ class Alibaba1688Scraper:
     ) -> Optional[Supplier1688]:
         """Parse a single supplier item from DOM."""
         try:
-            # Extract title
-            title_elem = await item.query_selector(".title, .offer-title, h2 a, [class*='title'] a")
+            # Extract title (updated selectors for 2026)
+            title_elem = await item.query_selector(".title-text, .title, .offer-title, h2 a, [class*='title'] a")
             title = await title_elem.inner_text() if title_elem else ""
             title = title.strip()
 
             if not title:
                 return None
 
-            # Extract price
-            price_elem = await item.query_selector(".price, .offer-price, [class*='price'] em")
+            # Extract price (updated selectors for 2026)
+            price_elem = await item.query_selector("[class*='price'], .price, .offer-price")
             price_text = await price_elem.inner_text() if price_elem else "0"
             price = self._parse_price(price_text)
 
-            # Extract URL and offer_id
-            link_elem = await item.query_selector("a[href*='detail.1688.com'], a[href*='offer']")
+            # Extract URL and offer_id (updated selectors for 2026)
+            link_elem = await item.query_selector("a[href*='detail.1688.com'], a[href*='offer'], a[href*='1688.com']")
             url = await link_elem.get_attribute("href") if link_elem else ""
             if url and not url.startswith("http"):
                 url = f"https:{url}" if url.startswith("//") else f"https://detail.1688.com{url}"

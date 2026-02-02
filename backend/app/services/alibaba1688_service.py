@@ -786,28 +786,27 @@ class Alibaba1688Scraper:
 
             url = await link_elem.get_attribute("href") if link_elem else ""
 
-            # Skip items with similar_search or recommend URLs (not real products)
+            # Log URLs for debugging (temporarily allowing all)
             if "similar_search" in url or "recommend" in url:
-                print(f"[1688] Skipping non-product URL: {url[:80]}...")
-                return None
+                print(f"[1688] Warning: Non-standard URL: {url[:80]}...")
 
             if url and not url.startswith("http"):
                 url = f"https:{url}" if url.startswith("//") else f"https://detail.1688.com{url}"
 
             offer_id = self._extract_offer_id(url)
 
-            # Validate offer_id - should be numeric or a valid product identifier
-            if not offer_id:
-                print(f"[1688] No offer_id found in URL: {url[:80]}")
-                return None
-
-            # If offer_id looks like a path/query, try to extract numeric ID
-            if not offer_id.isdigit():
-                numeric_match = re.search(r'(\d{10,})', url)
+            # Try to extract numeric offer_id from URL
+            if not offer_id or not offer_id.isdigit():
+                numeric_match = re.search(r'(\d{8,})', url)
                 if numeric_match:
                     offer_id = numeric_match.group(1)
+                elif url:
+                    # Use hash of URL as fallback identifier
+                    import hashlib
+                    offer_id = hashlib.md5(url.encode()).hexdigest()[:12]
+                    print(f"[1688] Using hash as offer_id for: {url[:60]}...")
                 else:
-                    print(f"[1688] Non-numeric offer_id, URL: {url[:80]}")
+                    print(f"[1688] No valid identifier found")
                     return None
 
             # Extract image

@@ -1,6 +1,6 @@
 # AU/NZ 选品工具 - 开发进度
 
-## 当前状态: ⚠️ 排名系统已更新，等待Render部署
+## 当前状态: ✅ 排名系统v4.0.0已部署运行
 
 ---
 
@@ -40,10 +40,11 @@ Data Sources: {trademe_cached: True, ebay_api: True, google_trends: True, suppli
 ...
 ```
 
-#### 3. Render 部署状态 ⚠️
+#### 3. Render 部署状态 ✅
 - 已推送代码到 GitHub
-- 等待 Render 重新构建和部署
-- **注意**: Render 服务当前返回 404，可能需要检查配置
+- Render 部署成功运行
+- **正确的API URL**: `https://aunz-product-finder-api.onrender.com`
+- 版本: 4.0.0-official-apis
 
 ### 技术要点
 
@@ -564,7 +565,7 @@ npm run dev
 | 服务 | URL |
 |------|-----|
 | **Frontend** | https://claude-aunz-product-finder.netlify.app |
-| **Backend API** | https://claude-aunz-product-finder.onrender.com |
+| **Backend API** | https://aunz-product-finder-api.onrender.com |
 | **GitHub 仓库** | https://github.com/derek33808/claude-aunz-product-finder |
 | **Supabase** | https://cwmkzrgzjgtrkkxgrmra.supabase.co |
 

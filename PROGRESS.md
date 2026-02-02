@@ -231,8 +231,33 @@
 - 1688 爬虫功能在生产环境暂不可用（Playwright 未安装），但 API 不会报错
 - 产品 API (`/api/products/*`) 需要 Supabase 环境变量配置
 
+### Supabase 环境变量配置 (2026-02-02 10:38 AM)
+
+**问题**: Products API 返回 Internal Server Error
+**原因**: Render 环境变量中的 Supabase URL 配置错误
+- 错误的 URL: `https://dfeeyhrjneuilmhsiwww.supabase.co`
+- 正确的 URL: `https://cwmkzrgzjgtrkkxgrmra.supabase.co`
+
+**修复**:
+1. ✅ 在 Render Dashboard 更新 `SUPABASE_URL`
+2. ✅ 在 Render Dashboard 更新 `SUPABASE_KEY`
+3. ✅ 触发重新部署
+
+**验证结果**:
+- ✅ `/health` - `{"status":"healthy"}`
+- ✅ `/api/suppliers/exchange-rates` - 返回汇率数据
+- ✅ `/api/products/hot` - 返回空数组（无错误，数据库连接正常）
+- ✅ 前端 Google Trends 图表正常显示
+
+### 部署完成状态
+
+| 服务 | 状态 | URL |
+|------|------|-----|
+| **前端 (Netlify)** | ✅ 正常运行 | https://claude-aunz-product-finder.netlify.app |
+| **后端 (Render)** | ✅ 正常运行 | https://claude-aunz-product-finder.onrender.com |
+| **数据库 (Supabase)** | ✅ 已连接 | https://cwmkzrgzjgtrkkxgrmra.supabase.co |
+
 ### 下一步
-- [ ] 配置 Render 环境变量 (Supabase 连接)
 - [ ] 用户验收测试
 - [ ] 根据反馈优化
 
@@ -330,7 +355,7 @@ npm run dev
 | **Frontend** | https://claude-aunz-product-finder.netlify.app |
 | **Backend API** | https://claude-aunz-product-finder.onrender.com |
 | **GitHub 仓库** | https://github.com/derek33808/claude-aunz-product-finder |
-| **Supabase** | https://dfeeyhrjneuilmhsiwww.supabase.co |
+| **Supabase** | https://cwmkzrgzjgtrkkxgrmra.supabase.co |
 
 ## 更新日志
 

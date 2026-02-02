@@ -135,6 +135,126 @@ async def get_exchange_rates():
     }
 
 
+@router.get("/debug")
+async def debug_1688_scraper(
+    keyword: str = Query("手机壳", description="Test keyword"),
+):
+    """
+    Debug endpoint for 1688 scraper.
+    Returns detailed information about the scraping process.
+    """
+    from app.services.alibaba1688_service import PLAYWRIGHT_AVAILABLE
+
+    debug_info = {
+        "playwright_available": PLAYWRIGHT_AVAILABLE,
+        "browser_launched": False,
+        "page_loaded": False,
+        "page_title": None,
+        "page_url": None,
+        "html_snippet": None,
+        "captcha_detected": False,
+        "login_detected": False,
+        "selectors_tested": [],
+        "items_found": 0,
+        "error": None,
+    }
+
+    if not PLAYWRIGHT_AVAILABLE:
+        debug_info["error"] = "Playwright not available"
+        return debug_info
+
+    try:
+        from playwright.async_api import async_playwright
+        import asyncio
+
+        async def run_debug():
+            playwright = await async_playwright().start()
+            try:
+                browser = await playwright.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-setuid-sandbox"],
+                )
+                debug_info["browser_launched"] = True
+
+                context = await browser.new_context(
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                    viewport={"width": 1920, "height": 1080},
+                    locale="zh-CN",
+                )
+
+                page = await context.new_page()
+
+                # Add stealth script
+                await page.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                    window.chrome = { runtime: {} };
+                """)
+
+                url = f"https://s.1688.com/selloffer/offer_search.htm?keywords={keyword}"
+                await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                debug_info["page_loaded"] = True
+
+                await asyncio.sleep(3)
+
+                debug_info["page_title"] = await page.title()
+                debug_info["page_url"] = page.url
+
+                # Get HTML snippet
+                content = await page.content()
+                debug_info["html_snippet"] = content[:2000]
+
+                # Check for captcha/login
+                if "验证" in content:
+                    debug_info["captcha_detected"] = True
+                if "登录" in content or "login" in content.lower():
+                    debug_info["login_detected"] = True
+
+                # Test selectors
+                selectors = [
+                    "div[class*='offer-item']",
+                    "div[class*='offeritem']",
+                    "div[class*='card-container']",
+                    ".J_ShopCard",
+                    ".offer-list-row",
+                    ".sm-offer-item",
+                    "[data-tracklog]",
+                    ".space-offer-card-box",
+                    "div[class*='product']",
+                    "div[class*='item-content']",
+                    "a[href*='detail.1688.com']",
+                ]
+
+                for selector in selectors:
+                    try:
+                        items = await page.query_selector_all(selector)
+                        count = len(items) if items else 0
+                        debug_info["selectors_tested"].append({
+                            "selector": selector,
+                            "count": count
+                        })
+                        if count > 0:
+                            debug_info["items_found"] = max(debug_info["items_found"], count)
+                    except Exception as e:
+                        debug_info["selectors_tested"].append({
+                            "selector": selector,
+                            "error": str(e)
+                        })
+
+                await page.close()
+                await context.close()
+                await browser.close()
+
+            finally:
+                await playwright.stop()
+
+        await run_debug()
+
+    except Exception as e:
+        debug_info["error"] = str(e)
+
+    return debug_info
+
+
 @router.get("/details/{offer_id}", response_model=Supplier1688Detail)
 async def get_supplier_details(
     offer_id: str,

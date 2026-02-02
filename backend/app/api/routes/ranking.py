@@ -118,3 +118,51 @@ async def get_ranking_status():
             "generated_at": _ranking_cache["AU"]["generated_at"] if _ranking_cache.get("AU") else None,
         },
     }
+
+
+@router.get("/debug/suppliers")
+async def debug_supplier_query(
+    keyword: str = Query("蓝牙耳机", description="Chinese keyword to search"),
+):
+    """
+    Debug endpoint to test 1688 supplier query.
+    """
+    from app.database import get_db
+
+    db = get_db()
+    results = {
+        "keyword": keyword,
+        "queries": {},
+    }
+
+    # Test 1: Simple select all
+    try:
+        all_result = db.table("suppliers_1688").select("search_keyword").limit(5).execute()
+        results["queries"]["select_all"] = {
+            "count": len(all_result.data),
+            "sample": all_result.data[:3] if all_result.data else [],
+        }
+    except Exception as e:
+        results["queries"]["select_all"] = {"error": str(e)}
+
+    # Test 2: eq query
+    try:
+        eq_result = db.table("suppliers_1688").select("*").eq("search_keyword", keyword).limit(5).execute()
+        results["queries"]["eq_query"] = {
+            "count": len(eq_result.data),
+            "sample": [{"title": d.get("title", "")[:30], "price": d.get("price")} for d in eq_result.data[:3]] if eq_result.data else [],
+        }
+    except Exception as e:
+        results["queries"]["eq_query"] = {"error": str(e)}
+
+    # Test 3: ilike query
+    try:
+        like_result = db.table("suppliers_1688").select("*").ilike("title", f"%{keyword[:2]}%").limit(5).execute()
+        results["queries"]["ilike_query"] = {
+            "count": len(like_result.data),
+            "sample": [{"title": d.get("title", "")[:30], "price": d.get("price")} for d in like_result.data[:3]] if like_result.data else [],
+        }
+    except Exception as e:
+        results["queries"]["ilike_query"] = {"error": str(e)}
+
+    return results

@@ -659,22 +659,43 @@ class Alibaba1688Scraper:
         ]
 
         items = []
+        used_selector = None
         for selector in selectors:
             try:
-                items = await page.query_selector_all(selector)
-                print(f"[1688] Selector '{selector}': found {len(items)} items")
-                if items and len(items) >= 3:  # Need at least 3 items for valid results
-                    # Verify items have valid offer URLs (not similar_search)
-                    sample_item = items[0]
-                    link = await sample_item.query_selector("a[href*='detail.1688.com']")
-                    if link:
-                        href = await link.get_attribute("href") or ""
-                        if "similar_search" not in href:
-                            break  # Found valid main results
-                    items = []  # Reset if invalid
+                found_items = await page.query_selector_all(selector)
+                print(f"[1688] Selector '{selector}': found {len(found_items)} items")
+                if found_items and len(found_items) >= 1:
+                    # Check if any item has a valid product link
+                    for test_item in found_items[:3]:
+                        # Look for any link with numeric offer ID
+                        all_links = await test_item.query_selector_all("a[href*='1688.com']")
+                        for link in all_links:
+                            href = await link.get_attribute("href") or ""
+                            if "detail.1688.com/offer" in href and "similar_search" not in href:
+                                items = found_items
+                                used_selector = selector
+                                print(f"[1688] Using selector '{selector}' with valid product links")
+                                break
+                        if items:
+                            break
+                    if items:
+                        break
             except Exception as e:
                 print(f"[1688] Selector '{selector}' error: {e}")
                 continue
+
+        # If no valid selector found, try fallback with first available items
+        if not items:
+            print("[1688] No valid selector found, trying fallback extraction")
+            for selector in selectors:
+                try:
+                    items = await page.query_selector_all(selector)
+                    if items:
+                        used_selector = selector
+                        print(f"[1688] Fallback: using '{selector}' with {len(items)} items")
+                        break
+                except:
+                    continue
 
         if not items:
             # Log page content sample for debugging
@@ -775,10 +796,19 @@ class Alibaba1688Scraper:
 
             offer_id = self._extract_offer_id(url)
 
-            # Validate offer_id is numeric
-            if not offer_id or not offer_id.isdigit():
-                print(f"[1688] Invalid offer_id: {offer_id}")
+            # Validate offer_id - should be numeric or a valid product identifier
+            if not offer_id:
+                print(f"[1688] No offer_id found in URL: {url[:80]}")
                 return None
+
+            # If offer_id looks like a path/query, try to extract numeric ID
+            if not offer_id.isdigit():
+                numeric_match = re.search(r'(\d{10,})', url)
+                if numeric_match:
+                    offer_id = numeric_match.group(1)
+                else:
+                    print(f"[1688] Non-numeric offer_id, URL: {url[:80]}")
+                    return None
 
             # Extract image
             img_elem = await item.query_selector("img")

@@ -644,20 +644,37 @@ class Alibaba1688Scraper:
         suppliers = []
 
         # Try different selectors for 1688 search results (updated 2026)
+        # Focus on main search results area, exclude similar/recommended sections
         selectors = [
-            ".search-offer-item",  # New 2026 selector
-            ".offer-list-row",
+            # Main search result containers - more specific selectors first
+            ".sm-offer-list .sm-offer-item",  # Standard offer list
+            ".offer-list .offer-list-row",  # Offer list rows
+            "#sm-offer-list .search-offer-item",  # ID-based selector
+            ".app-offer-list .space-offer-card-box",  # App offer list
+            # Fallback to broader selectors
             ".sm-offer-item",
-            "[data-tracklog]",
-            ".space-offer-card-box",
+            ".offer-list-row",
+            ".search-offer-item:not([class*='similar']):not([class*='recommend'])",
+            "[data-offer-id]",  # Elements with offer ID attribute
         ]
 
         items = []
         for selector in selectors:
-            items = await page.query_selector_all(selector)
-            print(f"[1688] Selector '{selector}': found {len(items)} items")
-            if items:
-                break
+            try:
+                items = await page.query_selector_all(selector)
+                print(f"[1688] Selector '{selector}': found {len(items)} items")
+                if items and len(items) >= 3:  # Need at least 3 items for valid results
+                    # Verify items have valid offer URLs (not similar_search)
+                    sample_item = items[0]
+                    link = await sample_item.query_selector("a[href*='detail.1688.com']")
+                    if link:
+                        href = await link.get_attribute("href") or ""
+                        if "similar_search" not in href:
+                            break  # Found valid main results
+                    items = []  # Reset if invalid
+            except Exception as e:
+                print(f"[1688] Selector '{selector}' error: {e}")
+                continue
 
         if not items:
             # Log page content sample for debugging
@@ -739,12 +756,29 @@ class Alibaba1688Scraper:
             price = self._parse_price(price_text)
 
             # Extract URL and offer_id (updated selectors for 2026)
-            link_elem = await item.query_selector("a[href*='detail.1688.com'], a[href*='offer'], a[href*='1688.com']")
+            # Prioritize links to actual product detail pages
+            link_elem = await item.query_selector("a[href*='detail.1688.com/offer']")
+            if not link_elem:
+                link_elem = await item.query_selector("a[href*='/offer/'][href*='.html']")
+            if not link_elem:
+                link_elem = await item.query_selector("a[href*='1688.com']")
+
             url = await link_elem.get_attribute("href") if link_elem else ""
+
+            # Skip items with similar_search or recommend URLs (not real products)
+            if "similar_search" in url or "recommend" in url:
+                print(f"[1688] Skipping non-product URL: {url[:80]}...")
+                return None
+
             if url and not url.startswith("http"):
                 url = f"https:{url}" if url.startswith("//") else f"https://detail.1688.com{url}"
 
             offer_id = self._extract_offer_id(url)
+
+            # Validate offer_id is numeric
+            if not offer_id or not offer_id.isdigit():
+                print(f"[1688] Invalid offer_id: {offer_id}")
+                return None
 
             # Extract image
             img_elem = await item.query_selector("img")

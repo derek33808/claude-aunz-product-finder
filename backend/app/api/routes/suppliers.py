@@ -68,16 +68,65 @@ async def search_1688_suppliers(
     limit: int = Query(20, ge=1, le=50, description="Number of results"),
     source_price: float = Query(0, description="Source product price for scoring"),
     source_currency: str = Query("AUD", regex="^(AUD|NZD)$"),
+    use_cache: bool = Query(True, description="Use cached data from database"),
+    db=Depends(get_db),
 ):
     """
-    Directly search 1688 suppliers by keyword.
+    Search 1688 suppliers by keyword.
+
+    优先从数据库缓存查询，如果没有缓存数据则尝试实时爬取。
+    建议使用本地爬虫脚本 (tools/scrape_1688.py) 预先填充缓存数据。
 
     - **keyword**: Chinese search keyword (e.g., "无线耳机")
     - **max_price**: Maximum price in CNY
     - **limit**: Number of results to return
     - **source_price**: Original product price for profit calculation
     - **source_currency**: AUD or NZD
+    - **use_cache**: Whether to use cached database data (default: true)
     """
+    # 首先尝试从数据库缓存查询
+    if use_cache:
+        try:
+            query = db.table("suppliers_1688").select("*")
+
+            # 关键词匹配（精确匹配或模糊匹配）
+            query = query.or_(
+                f"search_keyword.eq.{keyword},title.ilike.%{keyword}%"
+            )
+
+            # 价格过滤
+            if max_price > 0:
+                query = query.lte("price", max_price)
+
+            # 排序和限制
+            query = query.order("sold_count", desc=True).limit(limit)
+
+            result = query.execute()
+
+            if result.data:
+                print(f"[1688] Found {len(result.data)} cached suppliers for '{keyword}'")
+                return [
+                    Supplier1688Response(
+                        offer_id=s["offer_id"],
+                        title=s["title"],
+                        price=float(s["price"]),
+                        moq=1,
+                        sold_count=s.get("sold_count", 0),
+                        image_url=s.get("image_url"),
+                        product_url=s.get("product_url", ""),
+                        supplier_name=s.get("supplier_name", "Unknown"),
+                        location=s.get("location"),
+                        is_small_medium=True,
+                        id=s["offer_id"],
+                    )
+                    for s in result.data
+                ]
+        except Exception as e:
+            print(f"[1688] Cache query error: {e}")
+            # 继续尝试实时爬取
+
+    # 如果缓存没有数据，尝试实时爬取（可能被验证码拦截）
+    print(f"[1688] No cache found, attempting live scrape for '{keyword}'")
     scraper = Alibaba1688Scraper()
 
     try:
@@ -88,6 +137,10 @@ async def search_1688_suppliers(
             source_price=source_price,
             source_currency=source_currency,
         )
+
+        if not suppliers:
+            # 返回提示信息
+            print(f"[1688] No suppliers found. Run: python tools/scrape_1688.py \"{keyword}\"")
 
         return [
             Supplier1688Response(
@@ -119,6 +172,45 @@ async def translate_keywords(
         "extracted_keywords": keywords,
         "chinese_keywords": chinese_keywords,
     }
+
+
+@router.get("/cache-stats")
+async def get_cache_stats(db=Depends(get_db)):
+    """
+    获取 1688 供应商缓存统计信息。
+
+    返回缓存的关键词列表、总数量和最后更新时间。
+    """
+    try:
+        # 获取总数
+        count_result = db.table("suppliers_1688").select("id", count="exact").execute()
+        total_count = count_result.count if hasattr(count_result, 'count') else len(count_result.data)
+
+        # 获取关键词统计
+        keywords_result = db.table("suppliers_1688").select("search_keyword").execute()
+        keyword_counts = {}
+        for row in keywords_result.data:
+            kw = row.get("search_keyword", "unknown")
+            keyword_counts[kw] = keyword_counts.get(kw, 0) + 1
+
+        # 获取最后更新时间
+        latest_result = db.table("suppliers_1688").select("scraped_at").order("scraped_at", desc=True).limit(1).execute()
+        last_updated = latest_result.data[0]["scraped_at"] if latest_result.data else None
+
+        return {
+            "total_cached": total_count,
+            "keywords": keyword_counts,
+            "last_updated": last_updated,
+            "note": "使用 tools/scrape_1688.py 脚本更新缓存数据",
+        }
+    except Exception as e:
+        return {
+            "total_cached": 0,
+            "keywords": {},
+            "last_updated": None,
+            "error": str(e),
+            "note": "请先运行数据库迁移: supabase/migrations/002_suppliers_1688.sql",
+        }
 
 
 @router.get("/exchange-rates")

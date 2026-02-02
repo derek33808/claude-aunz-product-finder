@@ -77,11 +77,20 @@ EBAY_CERT_ID=xxx
 3. [ ] 配置 TradeMe API 环境变量（可选）
 4. [ ] 配置 eBay API 环境变量
 
-### 下一步
-- [ ] 解决 Render 404 问题
-- [ ] 添加 "太阳能灯" 供应商数据（当前为0）
-- [ ] 配置官方API凭据到 Render
+### 完成任务
+- [x] ~~解决 Render 404 问题~~ - URL是 `aunz-product-finder-api.onrender.com`
+- [x] 添加 "太阳能灯" 供应商数据 - 已添加15个产品
+- [ ] 配置官方API凭据到 Render（可选优化）
 - [ ] 前端测试完整排名流程
+
+### 最新排名结果 (2026-02-03)
+```
+1. solar light (太阳能灯) - Score: 86.0 - 15 suppliers
+2. smart watch (智能手表) - Score: 85.9 - 20 suppliers
+3. sunglasses (太阳镜) - Score: 85.3 - 12 suppliers
+4. backpack (背包) - Score: 83.1 - 12 suppliers
+5. storage box (收纳盒) - Score: 69.1 - 11 suppliers
+```
 
 ---
 

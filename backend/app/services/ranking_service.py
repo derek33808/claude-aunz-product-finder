@@ -8,21 +8,31 @@ from datetime import datetime
 from app.services.google_trends_service import GoogleTrendsService
 from app.database import get_db
 
-# Check if running in serverless environment (Render)
-IS_SERVERLESS = os.environ.get("RENDER", False) or os.environ.get("IS_SERVERLESS", False)
+# Check environment
+# IS_DOCKER = running in Docker container with Playwright (can use scrapers)
+# IS_SERVERLESS = running without browser support (use cached data only)
+IS_DOCKER = os.environ.get("IS_DOCKER", "").lower() == "true"
+IS_RENDER = os.environ.get("RENDER", False)
 
-# Only import Playwright-based scrapers if not in serverless
-if not IS_SERVERLESS:
+# If running in Docker, we have Playwright available
+# If running on Render without Docker, use cached data
+IS_SERVERLESS = IS_RENDER and not IS_DOCKER
+
+# Import Playwright-based scrapers if we have browser support
+if IS_DOCKER or not IS_SERVERLESS:
     try:
         from app.services.trademe_scraper import TradeMeScraper
         from app.services.amazon_scraper import AmazonScraper
         from app.services.temu_scraper import TemuScraper
         from app.services.ebay_service import EbayService
         HAS_SCRAPERS = True
-    except ImportError:
+        print(f"[RankingService] Scrapers enabled (IS_DOCKER={IS_DOCKER})")
+    except ImportError as e:
         HAS_SCRAPERS = False
+        print(f"[RankingService] Scrapers import failed: {e}")
 else:
     HAS_SCRAPERS = False
+    print(f"[RankingService] Using cached data (IS_SERVERLESS={IS_SERVERLESS})")
 
 
 class RankingService:
@@ -37,7 +47,7 @@ class RankingService:
     """
 
     # Version for tracking deployments
-    VERSION = "2.1.0-fix-data-extraction"
+    VERSION = "3.0.0-docker-scrapers"
 
     # Scoring weights
     WEIGHTS = {

@@ -19,6 +19,7 @@ EXPOSE 10000
 # Set environment variables
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PORT=10000
+ENV IS_DOCKER=true
 
 # Run the application
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]

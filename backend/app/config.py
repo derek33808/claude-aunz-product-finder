@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     ebay_cert_id: str = ""
     ebay_dev_id: str = ""
 
+    # TradeMe API
+    trademe_consumer_key: str = ""
+    trademe_consumer_secret: str = ""
+    trademe_oauth_token: str = ""
+    trademe_oauth_token_secret: str = ""
+    trademe_sandbox: bool = False  # Set to True for testing
+
     # AI APIs (optional)
     openai_api_key: str = ""
     anthropic_api_key: str = ""

@@ -7,32 +7,18 @@ from datetime import datetime
 
 from app.services.google_trends_service import GoogleTrendsService
 from app.database import get_db
+from app.config import settings
 
-# Check environment
-# IS_DOCKER = running in Docker container with Playwright (can use scrapers)
-# IS_SERVERLESS = running without browser support (use cached data only)
-IS_DOCKER = os.environ.get("IS_DOCKER", "").lower() == "true"
-IS_RENDER = os.environ.get("RENDER", False)
+# Import official API services
+from app.services.trademe_api_service import TradeMeAPIService, is_trademe_api_configured
+from app.services.ebay_service import EbayService
 
-# If running in Docker, we have Playwright available
-# If running on Render without Docker, use cached data
-IS_SERVERLESS = IS_RENDER and not IS_DOCKER
+# Check if official APIs are configured
+HAS_TRADEME_API = is_trademe_api_configured()
+HAS_EBAY_API = bool(settings.ebay_app_id and settings.ebay_cert_id)
 
-# Import Playwright-based scrapers if we have browser support
-if IS_DOCKER or not IS_SERVERLESS:
-    try:
-        from app.services.trademe_scraper import TradeMeScraper
-        from app.services.amazon_scraper import AmazonScraper
-        from app.services.temu_scraper import TemuScraper
-        from app.services.ebay_service import EbayService
-        HAS_SCRAPERS = True
-        print(f"[RankingService] Scrapers enabled (IS_DOCKER={IS_DOCKER})")
-    except ImportError as e:
-        HAS_SCRAPERS = False
-        print(f"[RankingService] Scrapers import failed: {e}")
-else:
-    HAS_SCRAPERS = False
-    print(f"[RankingService] Using cached data (IS_SERVERLESS={IS_SERVERLESS})")
+print(f"[RankingService] TradeMe API: {'configured' if HAS_TRADEME_API else 'not configured'}")
+print(f"[RankingService] eBay API: {'configured' if HAS_EBAY_API else 'not configured'}")
 
 
 class RankingService:
@@ -47,7 +33,7 @@ class RankingService:
     """
 
     # Version for tracking deployments
-    VERSION = "3.0.0-docker-scrapers"
+    VERSION = "4.0.0-official-apis"
 
     # Scoring weights
     WEIGHTS = {
@@ -74,17 +60,11 @@ class RankingService:
     def __init__(self):
         self.google_trends = GoogleTrendsService()
 
-        # Initialize scrapers only if not in serverless environment
-        if HAS_SCRAPERS and not IS_SERVERLESS:
-            self.trademe_scraper = TradeMeScraper()
-            self.amazon_scraper = AmazonScraper()
-            self.temu_scraper = TemuScraper()
-            self.ebay_service = EbayService()
-        else:
-            self.trademe_scraper = None
-            self.amazon_scraper = None
-            self.temu_scraper = None
-            self.ebay_service = None
+        # Initialize official API services
+        self.trademe_api = TradeMeAPIService() if HAS_TRADEME_API else None
+        self.ebay_service = EbayService() if HAS_EBAY_API else None
+
+        print(f"[RankingService] Initialized with TradeMe API: {self.trademe_api is not None}, eBay API: {self.ebay_service is not None}")
 
     async def calculate_rankings(
         self,
@@ -142,14 +122,16 @@ class RankingService:
             "generated_at": datetime.now().isoformat(),
             "elapsed_seconds": elapsed_time,
             "version": self.VERSION,
-            "is_serverless": IS_SERVERLESS,
             "data_sources": {
-                "trademe": market == "NZ",
-                "amazon_au": True,
-                "ebay": True,
-                "temu": True,
+                "trademe_api": HAS_TRADEME_API and market == "NZ",
+                "trademe_cached": not HAS_TRADEME_API and market == "NZ",
+                "ebay_api": HAS_EBAY_API,
                 "google_trends": True,
                 "suppliers_1688": True,
+            },
+            "api_status": {
+                "trademe_configured": HAS_TRADEME_API,
+                "ebay_configured": HAS_EBAY_API,
             },
         }
 
@@ -158,18 +140,13 @@ class RankingService:
         keywords: List[str],
         market: str,
     ) -> Dict[str, Dict]:
-        """Collect data from all e-commerce platforms.
+        """Collect data from all e-commerce platforms using official APIs.
 
-        In serverless environment (Render), uses cached data from Supabase.
-        In local environment, can use live scraping if scrapers are available.
+        Uses TradeMe API and eBay API when configured.
+        Falls back to cached data when APIs are not available.
         """
         platform_data = {}
 
-        # In serverless, use cached TradeMe data from Supabase
-        if IS_SERVERLESS or not HAS_SCRAPERS:
-            return await self._get_cached_platform_data(keywords, market)
-
-        # Live scraping (local environment only)
         for keyword in keywords:
             data = {
                 "trademe": None,
@@ -181,63 +158,63 @@ class RankingService:
             try:
                 tasks = []
 
-                # TradeMe (NZ only)
-                if market == "NZ" and self.trademe_scraper:
+                # TradeMe API (NZ only)
+                if market == "NZ" and self.trademe_api:
                     tasks.append(self._safe_call(
-                        self.trademe_scraper.search_products(keyword, limit=20),
+                        self.trademe_api.search_products(keyword, limit=50),
                         "trademe"
                     ))
-                else:
-                    async def return_none():
-                        return ("trademe", None)
-                    tasks.append(return_none())
+                elif market == "NZ":
+                    # Use cached data if API not configured
+                    cached = await self._get_cached_trademe_data(keyword)
+                    data["trademe"] = cached
 
-                # Amazon AU
-                if self.amazon_scraper:
-                    tasks.append(self._safe_call(
-                        self.amazon_scraper.search_products(keyword, market, limit=20),
-                        "amazon"
-                    ))
-
-                # eBay
+                # eBay API
                 if self.ebay_service:
                     tasks.append(self._safe_call(
-                        self.ebay_service.search_products(keyword, market, limit=20),
+                        self._fetch_ebay_data(keyword, market),
                         "ebay"
                     ))
 
-                # Temu
-                if self.temu_scraper:
-                    tasks.append(self._safe_call(
-                        self.temu_scraper.search_products(keyword, market, limit=20),
-                        "temu"
-                    ))
+                # Execute API calls in parallel
+                if tasks:
+                    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-                results = await asyncio.gather(*tasks, return_exceptions=True)
-
-                for result in results:
-                    if isinstance(result, tuple) and len(result) == 2:
-                        name, res = result
-                        if not isinstance(res, Exception):
-                            data[name] = res
+                    for result in results:
+                        if isinstance(result, tuple) and len(result) == 2:
+                            name, res = result
+                            if not isinstance(res, Exception) and res is not None:
+                                data[name] = res
 
             except Exception as e:
-                print(f"Error collecting platform data for {keyword}: {e}")
+                print(f"[Platform] Error collecting data for {keyword}: {e}")
 
             platform_data[keyword] = data
 
         return platform_data
 
-    async def _get_cached_platform_data(
-        self,
-        keywords: List[str],
-        market: str,
-    ) -> Dict[str, Dict]:
-        """Get cached platform data from Supabase (for serverless environment)."""
-        platform_data = {}
-        db = get_db()
+    async def _fetch_ebay_data(self, keyword: str, market: str) -> Dict:
+        """Fetch eBay data and transform to standard format."""
+        try:
+            products = await self.ebay_service.search_products(keyword, market, limit=50)
+            if products:
+                prices = [p["price"] for p in products if p.get("price")]
+                return {
+                    "total_results": len(products),
+                    "products": products,
+                    "price_stats": {
+                        "min": min(prices) if prices else 0,
+                        "max": max(prices) if prices else 0,
+                        "avg": sum(prices) / len(prices) if prices else 0,
+                    },
+                }
+        except Exception as e:
+            print(f"[eBay API] Error for {keyword}: {e}")
+        return None
 
-        # TradeMe cached data statistics (collected earlier)
+    async def _get_cached_trademe_data(self, keyword: str) -> Dict:
+        """Get cached TradeMe data when API is not configured."""
+        # Cached data from earlier scraping
         TRADEME_CACHED_DATA = {
             "sunglasses sport": {"listings": 20648, "avg_price": 35.0},
             "smart watch": {"listings": 17319, "avg_price": 89.0},
@@ -251,50 +228,17 @@ class RankingService:
             "storage organizer": {"listings": 4200, "avg_price": 25.0},
         }
 
-        for keyword in keywords:
-            data = {
-                "trademe": None,
-                "amazon": None,
-                "ebay": None,
-                "temu": None,
+        if keyword in TRADEME_CACHED_DATA:
+            cached = TRADEME_CACHED_DATA[keyword]
+            return {
+                "total_results": cached["listings"],
+                "price_stats": {
+                    "min": cached["avg_price"] * 0.5,
+                    "max": cached["avg_price"] * 2.0,
+                    "avg": cached["avg_price"],
+                },
             }
-
-            # Use cached TradeMe data for NZ market
-            if market == "NZ" and keyword in TRADEME_CACHED_DATA:
-                cached = TRADEME_CACHED_DATA[keyword]
-                data["trademe"] = {
-                    "total_results": cached["listings"],
-                    "price_stats": {
-                        "min": cached["avg_price"] * 0.5,
-                        "max": cached["avg_price"] * 2.0,
-                        "avg": cached["avg_price"],
-                    },
-                }
-
-            # Try to get Amazon/Temu data from cached products table
-            try:
-                products_result = db.table("products")\
-                    .select("*")\
-                    .ilike("title", f"%{keyword.split()[0]}%")\
-                    .limit(50)\
-                    .execute()
-
-                if products_result.data:
-                    prices = [p["price"] for p in products_result.data if p.get("price")]
-                    data["amazon"] = {
-                        "total_results": len(products_result.data),
-                        "price_stats": {
-                            "min": min(prices) if prices else 0,
-                            "max": max(prices) if prices else 0,
-                            "avg": sum(prices) / len(prices) if prices else 0,
-                        },
-                    }
-            except Exception as e:
-                print(f"Error getting cached products for {keyword}: {e}")
-
-            platform_data[keyword] = data
-
-        return platform_data
+        return None
 
     async def _safe_call(self, coro, name: str):
         """Safely call an async function and return (name, result)."""
@@ -428,12 +372,25 @@ class RankingService:
         # TradeMe (NZ only)
         if market == "NZ" and platform_data.get("trademe"):
             trademe = platform_data["trademe"]
-            if isinstance(trademe, list):
+            if isinstance(trademe, dict):
+                count = trademe.get("total_results", 0)
+                price_stats = trademe.get("price_stats", {})
+            elif isinstance(trademe, list):
                 count = len(trademe)
+                prices = [p.get("price", 0) for p in trademe if p.get("price")]
+                price_stats = {
+                    "min": min(prices) if prices else 0,
+                    "max": max(prices) if prices else 0,
+                    "avg": sum(prices) / len(prices) if prices else 0,
+                }
             else:
-                count = trademe.get("total_results", len(trademe)) if trademe else 0
+                count = 0
+                price_stats = {}
             demand_scores.append(min(100, count / 100))  # Scale: 10000 listings = 100 score
-            platform_stats["trademe"] = {"listings": count}
+            platform_stats["trademe"] = {
+                "listings": count,
+                "price_range": price_stats,
+            }
 
         # Amazon
         if platform_data.get("amazon"):
@@ -448,12 +405,25 @@ class RankingService:
         # eBay
         if platform_data.get("ebay"):
             ebay = platform_data["ebay"]
-            if isinstance(ebay, list):
+            if isinstance(ebay, dict):
+                count = ebay.get("total_results", 0)
+                price_stats = ebay.get("price_stats", {})
+            elif isinstance(ebay, list):
                 count = len(ebay)
+                prices = [p.get("price", 0) for p in ebay if p.get("price")]
+                price_stats = {
+                    "min": min(prices) if prices else 0,
+                    "max": max(prices) if prices else 0,
+                    "avg": sum(prices) / len(prices) if prices else 0,
+                }
             else:
-                count = len(ebay) if ebay else 0
+                count = 0
+                price_stats = {}
             demand_scores.append(min(100, count / 50))
-            platform_stats["ebay"] = {"listings": count}
+            platform_stats["ebay"] = {
+                "listings": count,
+                "price_range": price_stats,
+            }
 
         # Temu
         if platform_data.get("temu"):
@@ -484,8 +454,12 @@ class RankingService:
         market_prices = []
         if platform_stats.get("amazon", {}).get("price_range", {}).get("avg"):
             market_prices.append(platform_stats["amazon"]["price_range"]["avg"])
+        if platform_stats.get("ebay", {}).get("price_range", {}).get("avg"):
+            market_prices.append(platform_stats["ebay"]["price_range"]["avg"])
         if platform_stats.get("temu", {}).get("price_range", {}).get("avg"):
             market_prices.append(platform_stats["temu"]["price_range"]["avg"])
+        if platform_stats.get("trademe", {}).get("price_range", {}).get("avg"):
+            market_prices.append(platform_stats["trademe"]["price_range"]["avg"])
 
         market_price = sum(market_prices) / len(market_prices) if market_prices else 0
 
@@ -558,10 +532,6 @@ class RankingService:
         }
 
     async def close(self):
-        """Close all browser instances."""
-        if self.trademe_scraper:
-            await self.trademe_scraper.close()
-        if self.amazon_scraper:
-            await self.amazon_scraper.close()
-        if self.temu_scraper:
-            await self.temu_scraper.close()
+        """Cleanup resources (no-op for API-based services)."""
+        # API services don't need explicit cleanup
+        pass

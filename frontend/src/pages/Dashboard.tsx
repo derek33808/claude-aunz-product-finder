@@ -4,11 +4,33 @@ import { ShoppingOutlined, RiseOutlined, FileTextOutlined, GlobalOutlined, Reloa
 import ReactECharts from 'echarts-for-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { productsApi, reportsApi, trendsApi, suppliersApi } from '../services/api';
+import { productsApi, reportsApi, trendsApi, suppliersApi, rankingApi } from '../services/api';
+import type { RankingResult } from '../services/api';
 import type { Product, Report, Supplier1688, SupplierMatchResult } from '../types';
 import type { TableRowSelection } from 'antd/es/table/interface';
 
 type HotProduct = Product & { hot_score: number };
+
+// Extended type for ranking results display
+type RankingDisplayItem = {
+  id: string;
+  keyword: string;
+  category_zh: string;
+  category_en: string;
+  total_score: number;
+  rank: number;
+  demand_score: number;
+  trend_score: number;
+  profit_score: number;
+  competition_score: number;
+  profit_margin_percent: number;
+  cost_cny: number;
+  market_price_local: number;
+  supplier_count: number;
+  top_product_title?: string;
+  top_product_url?: string;
+  platform_stats: Record<string, { listings: number; price_range?: { min: number; max: number; avg: number } }>;
+};
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -18,6 +40,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [trendData, setTrendData] = useState<any>(null);
   const [hotProducts, setHotProducts] = useState<HotProduct[]>([]);
+  const [rankingResults, setRankingResults] = useState<RankingDisplayItem[]>([]);
+  const [selectedMarket, setSelectedMarket] = useState<string>('NZ');
   const [hotLoading, setHotLoading] = useState(false);
   const [selectedProductForTrend, setSelectedProductForTrend] = useState<string>('');
   const [trendLoading, setTrendLoading] = useState(false);
@@ -59,10 +83,43 @@ const Dashboard = () => {
   const findHotProducts = async () => {
     setHotLoading(true);
     try {
-      const data = await productsApi.getHotProducts(10);
-      setHotProducts(data);
+      // Use ranking API to get scored product recommendations
+      const rankingData = await rankingApi.calculate(selectedMarket);
+
+      // Transform ranking results to display format
+      const displayItems: RankingDisplayItem[] = rankingData.rankings.map((item, index) => ({
+        id: `ranking-${index}`,
+        keyword: item.keyword,
+        category_zh: item.category_zh,
+        category_en: item.category_en,
+        total_score: item.total_score,
+        rank: item.rank,
+        demand_score: item.scores.demand,
+        trend_score: item.scores.trend,
+        profit_score: item.scores.profit,
+        competition_score: item.scores.competition,
+        profit_margin_percent: item.profit_analysis.profit_margin_percent,
+        cost_cny: item.profit_analysis.cost_cny,
+        market_price_local: item.profit_analysis.market_price_local,
+        supplier_count: item.supplier_info.product_count,
+        top_product_title: item.supplier_info.top_product?.title,
+        top_product_url: item.supplier_info.top_product?.product_url,
+        platform_stats: item.platform_stats,
+      }));
+
+      setRankingResults(displayItems);
+      // Clear old hot products as we now show ranking results
+      setHotProducts([]);
     } catch (error) {
-      console.error('Failed to get hot products:', error);
+      console.error('Failed to get ranking data:', error);
+      // Fallback to hot products API if ranking fails
+      try {
+        const data = await productsApi.getHotProducts(10);
+        setHotProducts(data);
+        setRankingResults([]);
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+      }
     } finally {
       setHotLoading(false);
     }
@@ -353,6 +410,128 @@ const Dashboard = () => {
     },
   ];
 
+  // Ranking results columns
+  const rankingColumns = [
+    {
+      title: '#',
+      dataIndex: 'rank',
+      key: 'rank',
+      width: 50,
+      render: (rank: number) => (
+        <Tag color={rank <= 3 ? 'gold' : rank <= 5 ? 'blue' : 'default'} style={{ fontWeight: 'bold' }}>
+          {rank}
+        </Tag>
+      ),
+    },
+    {
+      title: t('ranking.keyword') || 'Keyword',
+      dataIndex: 'keyword',
+      key: 'keyword',
+      width: 120,
+      render: (keyword: string, record: RankingDisplayItem) => (
+        <Tooltip title={record.category_zh}>
+          <span style={{ fontWeight: 500 }}>{keyword}</span>
+        </Tooltip>
+      ),
+    },
+    {
+      title: t('ranking.category') || 'Category',
+      dataIndex: 'category_en',
+      key: 'category',
+      width: 100,
+      render: (text: string) => <Tag>{text}</Tag>,
+    },
+    {
+      title: t('ranking.totalScore') || 'Score',
+      dataIndex: 'total_score',
+      key: 'total_score',
+      width: 80,
+      sorter: (a: RankingDisplayItem, b: RankingDisplayItem) => a.total_score - b.total_score,
+      render: (score: number) => (
+        <Tag color={score >= 80 ? 'green' : score >= 60 ? 'blue' : 'orange'} style={{ fontWeight: 'bold' }}>
+          {score.toFixed(1)}
+        </Tag>
+      ),
+    },
+    {
+      title: t('ranking.scores') || 'Score Breakdown',
+      key: 'scores',
+      width: 200,
+      render: (_: any, record: RankingDisplayItem) => (
+        <Space direction="vertical" size={0} style={{ fontSize: 11 }}>
+          <span>📈 Demand: {record.demand_score.toFixed(0)}</span>
+          <span>🔥 Trend: {record.trend_score.toFixed(0)}</span>
+          <span>💰 Profit: {record.profit_score.toFixed(0)}</span>
+          <span>⚔️ Competition: {record.competition_score.toFixed(0)}</span>
+        </Space>
+      ),
+    },
+    {
+      title: t('ranking.profitMargin') || 'Profit Margin',
+      dataIndex: 'profit_margin_percent',
+      key: 'profit_margin',
+      width: 100,
+      sorter: (a: RankingDisplayItem, b: RankingDisplayItem) => a.profit_margin_percent - b.profit_margin_percent,
+      render: (margin: number) => (
+        <Tag color={margin >= 50 ? 'green' : margin >= 30 ? 'blue' : margin >= 0 ? 'orange' : 'red'}>
+          {margin.toFixed(0)}%
+        </Tag>
+      ),
+    },
+    {
+      title: t('ranking.costPrice') || 'Cost (CNY)',
+      dataIndex: 'cost_cny',
+      key: 'cost_cny',
+      width: 90,
+      render: (cost: number) => cost > 0 ? `¥${cost.toFixed(0)}` : '-',
+    },
+    {
+      title: t('ranking.marketPrice') || `Market Price (${selectedMarket === 'NZ' ? 'NZD' : 'AUD'})`,
+      dataIndex: 'market_price_local',
+      key: 'market_price',
+      width: 120,
+      render: (price: number) => price > 0 ? `$${price.toFixed(2)}` : '-',
+    },
+    {
+      title: t('ranking.suppliers') || '1688 Suppliers',
+      dataIndex: 'supplier_count',
+      key: 'supplier_count',
+      width: 80,
+      render: (count: number) => (
+        <Tag color="orange">{count}</Tag>
+      ),
+    },
+    {
+      title: t('products.actions') || 'Actions',
+      key: 'actions',
+      width: 100,
+      render: (_: any, record: RankingDisplayItem) => (
+        <Space size="small">
+          <Tooltip title="Search Google Shopping">
+            <Button
+              type="text"
+              size="small"
+              icon={<SearchOutlined />}
+              href={`https://www.google.com${selectedMarket === 'NZ' ? '.nz' : '.com.au'}/search?q=${encodeURIComponent(record.keyword)}&tbm=shop`}
+              target="_blank"
+            />
+          </Tooltip>
+          {record.top_product_url && (
+            <Tooltip title="View on 1688">
+              <Button
+                type="text"
+                size="small"
+                icon={<ShopOutlined style={{ color: '#ff6600' }} />}
+                href={record.top_product_url}
+                target="_blank"
+              />
+            </Tooltip>
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   const getTrendChartOption = () => {
     if (!trendData?.data?.length) return {};
     const dates = trendData.data.map((d: any) => d.date);
@@ -393,6 +572,15 @@ const Dashboard = () => {
       <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ margin: 0 }}>{t('dashboard.title')}</h1>
         <Space>
+          <Select
+            value={selectedMarket}
+            onChange={setSelectedMarket}
+            style={{ width: 100 }}
+            options={[
+              { value: 'NZ', label: '🇳🇿 NZ' },
+              { value: 'AU', label: '🇦🇺 AU' },
+            ]}
+          />
           <Button type="primary" icon={<FireOutlined />} onClick={findHotProducts} loading={hotLoading} danger>
             {hotLoading ? t('dashboard.finding') : t('dashboard.findHotProducts')}
           </Button>
@@ -405,7 +593,65 @@ const Dashboard = () => {
         <Col span={6}><Card><Statistic title={t('dashboard.platforms')} value={4} prefix={<GlobalOutlined />} /></Card></Col>
         <Col span={6}><Card><Statistic title={t('dashboard.trending')} value={t('dashboard.active')} prefix={<RiseOutlined />} valueStyle={{ color: '#3f8600' }} /></Card></Col>
       </Row>
-      {hotProducts.length > 0 && (
+      {/* Ranking Results Table */}
+      {rankingResults.length > 0 && (
+        <Card
+          title={
+            <Space>
+              <FireOutlined style={{ color: '#ff4d4f' }} />
+              <span>{t('dashboard.productRanking') || 'Product Opportunity Ranking'}</span>
+              <Tag color="blue">{selectedMarket === 'NZ' ? '🇳🇿 New Zealand' : '🇦🇺 Australia'}</Tag>
+              <Tag color="green">{rankingResults.length} products</Tag>
+            </Space>
+          }
+          style={{ marginBottom: 16 }}
+          extra={
+            <Space>
+              <Button
+                size="small"
+                icon={<ExportOutlined />}
+                onClick={() => {
+                  const csvContent = [
+                    ['Rank', 'Keyword', 'Category', 'Total Score', 'Demand', 'Trend', 'Profit', 'Competition', 'Profit Margin %', 'Cost CNY', 'Market Price'].join(','),
+                    ...rankingResults.map(r => [
+                      r.rank,
+                      r.keyword,
+                      r.category_en,
+                      r.total_score.toFixed(1),
+                      r.demand_score.toFixed(0),
+                      r.trend_score.toFixed(0),
+                      r.profit_score.toFixed(0),
+                      r.competition_score.toFixed(0),
+                      r.profit_margin_percent.toFixed(1),
+                      r.cost_cny.toFixed(0),
+                      r.market_price_local.toFixed(2)
+                    ].join(','))
+                  ].join('\n');
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const link = document.createElement('a');
+                  link.href = URL.createObjectURL(blob);
+                  link.download = `product_ranking_${selectedMarket}_${new Date().toISOString().split('T')[0]}.csv`;
+                  link.click();
+                }}
+              >
+                {t('dashboard.exportRanking') || 'Export CSV'}
+              </Button>
+            </Space>
+          }
+        >
+          <Table
+            dataSource={rankingResults}
+            columns={rankingColumns}
+            rowKey="id"
+            pagination={false}
+            size="small"
+            scroll={{ x: 1100 }}
+          />
+        </Card>
+      )}
+
+      {/* Legacy Hot Products Table (fallback) */}
+      {hotProducts.length > 0 && rankingResults.length === 0 && (
         <Card title={<><FireOutlined style={{ color: '#ff4d4f', marginRight: 8 }} />{t('dashboard.topHotProducts')}</>} style={{ marginBottom: 16 }}>
           <Table
             dataSource={hotProducts}

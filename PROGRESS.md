@@ -1,6 +1,44 @@
 # AU/NZ 选品工具 - 开发进度
 
-## 当前状态: ✅ 排名系统v4.0.0已部署运行
+## 当前状态: ✅ 前端排名集成完成 - 待部署
+
+---
+
+## 2026-02-03 (前端排名API集成)
+
+### 完成内容
+
+#### 1. Dashboard.tsx 排名API集成
+- [x] 添加 `RankingDisplayItem` 类型定义
+- [x] 添加市场选择器 (NZ/AU)
+- [x] 修改 `findHotProducts()` 函数使用 `rankingApi.calculate()`
+- [x] 添加排名结果表格列定义 `rankingColumns`
+  - 排名、关键词、分类、总分、分数明细
+  - 利润率、成本价、市场价、供应商数量
+  - 操作按钮 (Google搜索、1688链接)
+- [x] 添加 CSV 导出功能
+- [x] 保留旧的热门产品表格作为后备方案
+
+#### 2. api.ts 更新
+- [x] 添加 `RankingResult` 接口
+- [x] 添加 `RankingResponse` 接口
+- [x] 添加 `rankingApi` 对象
+  - `calculate(market)` - 计算排名
+  - `getLatest(market)` - 获取最新排名
+  - `getCategories()` - 获取分类列表
+
+#### 3. 构建验证
+- [x] `npm run build` 成功
+- [x] 无 TypeScript 错误
+
+### 关键文件
+- `frontend/src/pages/Dashboard.tsx` - 排名显示集成
+- `frontend/src/services/api.ts` - 排名API服务
+
+### 下一步
+- [ ] 部署前端到 Netlify
+- [ ] 测试完整选品流程
+- [ ] 用户验收
 
 ---
 

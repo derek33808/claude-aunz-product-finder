@@ -221,4 +221,67 @@ export const suppliersApi = {
   },
 };
 
+// Ranking API
+export interface RankingResult {
+  keyword: string;
+  category_zh: string;
+  category_en: string;
+  total_score: number;
+  rank: number;
+  scores: {
+    demand: number;
+    trend: number;
+    profit: number;
+    competition: number;
+  };
+  platform_stats: Record<string, { listings: number; price_range?: { min: number; max: number; avg: number } }>;
+  supplier_info: {
+    cost_price_cny: number;
+    product_count: number;
+    top_product?: {
+      title: string;
+      price: number;
+      product_url: string;
+    };
+  };
+  profit_analysis: {
+    cost_cny: number;
+    market_price_local: number;
+    profit_margin_percent: number;
+  };
+}
+
+export interface RankingResponse {
+  market: string;
+  rankings: RankingResult[];
+  generated_at: string;
+  elapsed_seconds: number;
+  version: string;
+  data_sources: Record<string, boolean>;
+  api_status: {
+    trademe_configured: boolean;
+    ebay_configured: boolean;
+  };
+}
+
+export const rankingApi = {
+  calculate: async (market: string = 'NZ'): Promise<RankingResponse> => {
+    const response = await api.post(`/api/ranking/calculate?market=${market}`);
+    return response.data.data;
+  },
+
+  getLatest: async (market: string = 'NZ'): Promise<RankingResponse | null> => {
+    const response = await api.get(`/api/ranking/latest?market=${market}`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    return null;
+  },
+
+  getCategories: async () => {
+    const response = await api.get('/api/ranking/categories');
+    return response.data;
+  },
+};
+
 export default api;

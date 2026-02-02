@@ -1,6 +1,86 @@
 # AU/NZ 选品工具 - 开发进度
 
-## 当前状态: ✅ 1688 缓存方案已实现
+## 当前状态: ⚠️ 排名系统已更新，等待Render部署
+
+---
+
+## 2026-02-03 (官方API集成 + 排名系统升级)
+
+### 完成内容
+
+#### 1. 排名系统升级到 v4.0.0-official-apis
+- [x] 创建 TradeMe Official API 服务 (`trademe_api_service.py`)
+  - OAuth 1.0a 认证实现
+  - 搜索产品接口
+  - 支持沙盒和生产环境
+- [x] 更新排名服务 (`ranking_service.py`)
+  - 移除对旧爬虫的依赖
+  - 集成 TradeMe API 和 eBay API
+  - 优化 eBay 数据处理（包含价格统计）
+  - 使用缓存 TradeMe 数据作为后备方案
+- [x] 修复 1688 供应商数据Bug
+  - 修复 `supplier_data` 提取逻辑
+  - 修复价格为0时被过滤的问题
+
+#### 2. 本地测试结果
+**排名API测试成功！** (`POST /api/ranking/calculate?market=NZ`)
+
+```
+Version: 4.0.0-official-apis
+API Status: {trademe_configured: False, ebay_configured: True}
+Data Sources: {trademe_cached: True, ebay_api: True, google_trends: True, suppliers_1688: True}
+
+=== Rankings (Market: NZ) ===
+1. smart watch (智能手表) - Score: 86.5
+   TradeMe: 17319 listings, 1688 Cost: ¥16.36, Profit: 2490%
+2. sunglasses (太阳镜) - Score: 83.3
+   TradeMe: 20648 listings, 1688 Cost: ¥18.92, Profit: 781%
+3. backpack (背包) - Score: 80.4
+   TradeMe: 8500 listings, 1688 Cost: ¥83.83, Profit: 269%
+...
+```
+
+#### 3. Render 部署状态 ⚠️
+- 已推送代码到 GitHub
+- 等待 Render 重新构建和部署
+- **注意**: Render 服务当前返回 404，可能需要检查配置
+
+### 技术要点
+
+**TradeMe API 集成**:
+```python
+# 需要配置环境变量:
+TRADEME_CONSUMER_KEY=xxx
+TRADEME_CONSUMER_SECRET=xxx
+TRADEME_OAUTH_TOKEN=xxx (可选)
+TRADEME_OAUTH_TOKEN_SECRET=xxx (可选)
+TRADEME_SANDBOX=false
+```
+
+**eBay API 集成**:
+```python
+# 需要配置环境变量:
+EBAY_APP_ID=xxx
+EBAY_CERT_ID=xxx
+```
+
+### 关键文件
+- `backend/app/services/trademe_api_service.py` - TradeMe API (新增)
+- `backend/app/services/ranking_service.py` - 排名服务 (更新)
+- `backend/app/config.py` - 配置 (更新)
+- `backend/render.yaml` - Render Docker 配置 (更新)
+
+### Render 部署检查清单
+1. [ ] 确认 Root Directory 设置为 `backend`
+2. [ ] 确认使用 Docker 部署（不是 Python native）
+3. [ ] 配置 TradeMe API 环境变量（可选）
+4. [ ] 配置 eBay API 环境变量
+
+### 下一步
+- [ ] 解决 Render 404 问题
+- [ ] 添加 "太阳能灯" 供应商数据（当前为0）
+- [ ] 配置官方API凭据到 Render
+- [ ] 前端测试完整排名流程
 
 ---
 

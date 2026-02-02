@@ -41,7 +41,8 @@ class Settings(BaseSettings):
         "http://localhost:5173",
         "http://localhost:3000",
         "https://aunz-product-finder.netlify.app",
-        "https://*.netlify.app",
+        "https://claude-aunz-product-finder.netlify.app",
+        "*",  # Allow all origins for now - can be restricted later
     ]
 
     class Config:

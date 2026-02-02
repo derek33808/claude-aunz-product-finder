@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Button, Space, Select, Image, Tooltip, Modal, Descriptions, Divider } from 'antd';
-import { ShoppingOutlined, RiseOutlined, FileTextOutlined, GlobalOutlined, ReloadOutlined, FireOutlined, LinkOutlined, SearchOutlined, PictureOutlined, EyeOutlined, CloseOutlined, DeleteOutlined, DownOutlined, UpOutlined, ExportOutlined, FileAddOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Table, Tag, Button, Space, Select, Image, Tooltip, Modal, Descriptions, Divider, Drawer, InputNumber, Slider, Switch, Rate, Spin, Alert } from 'antd';
+import { ShoppingOutlined, RiseOutlined, FileTextOutlined, GlobalOutlined, ReloadOutlined, FireOutlined, LinkOutlined, SearchOutlined, PictureOutlined, EyeOutlined, CloseOutlined, DeleteOutlined, DownOutlined, UpOutlined, ExportOutlined, FileAddOutlined, ShopOutlined, DollarOutlined, CalculatorOutlined, CheckCircleOutlined, EnvironmentOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { productsApi, reportsApi, trendsApi } from '../services/api';
-import type { Product, Report } from '../types';
+import { productsApi, reportsApi, trendsApi, suppliersApi } from '../services/api';
+import type { Product, Report, Supplier1688, SupplierMatchResult } from '../types';
 import type { TableRowSelection } from 'antd/es/table/interface';
 
 type HotProduct = Product & { hot_score: number };
@@ -25,6 +25,17 @@ const Dashboard = () => {
   const [selectedProducts, setSelectedProducts] = useState<HotProduct[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectionPanelCollapsed, setSelectionPanelCollapsed] = useState(false);
+
+  // 1688 Supplier matching state
+  const [supplierDrawerVisible, setSupplierDrawerVisible] = useState(false);
+  const [supplierMatchResults, setSupplierMatchResults] = useState<SupplierMatchResult[]>([]);
+  const [supplierLoading, setSupplierLoading] = useState(false);
+  const [supplierMaxPrice, setSupplierMaxPrice] = useState<number>(500);
+  const [supplierLimit, setSupplierLimit] = useState<number>(10);
+  const [includeLargeItems, setIncludeLargeItems] = useState(false);
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier1688 | null>(null);
+  const [profitModalVisible, setProfitModalVisible] = useState(false);
+  const [profitQuantity, setProfitQuantity] = useState<number>(100);
 
   useEffect(() => { loadDashboardData(); }, []);
 
@@ -146,6 +157,87 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Failed to generate comparison report:', error);
     }
+  };
+
+  // 1688 Supplier matching functions
+  const handleMatch1688Suppliers = async () => {
+    if (selectedProducts.length === 0) return;
+
+    setSupplierLoading(true);
+    setSupplierDrawerVisible(true);
+    setSupplierMatchResults([]);
+
+    try {
+      const results = await suppliersApi.match({
+        product_ids: selectedProducts.map(p => p.id),
+        max_price: supplierMaxPrice,
+        limit: supplierLimit,
+        include_large: includeLargeItems,
+      });
+      setSupplierMatchResults(results);
+    } catch (error) {
+      console.error('Failed to match suppliers:', error);
+    } finally {
+      setSupplierLoading(false);
+    }
+  };
+
+  const calculateEstimatedProfit = (supplier: Supplier1688, sourceProduct: HotProduct) => {
+    const exchangeRate = sourceProduct.currency === 'NZD' ? 0.233 : 0.213;
+    const shippingPerUnit = 15; // CNY
+    const totalCostCNY = (supplier.price + shippingPerUnit) * profitQuantity;
+    const totalCostTarget = totalCostCNY * exchangeRate;
+    const revenue = Number(sourceProduct.price) * profitQuantity;
+    const grossProfit = revenue - totalCostTarget;
+    const profitMargin = (grossProfit / revenue) * 100;
+    const roi = (grossProfit / totalCostTarget) * 100;
+
+    return {
+      totalCostCNY,
+      totalCostTarget: totalCostTarget.toFixed(2),
+      revenue: revenue.toFixed(2),
+      grossProfit: grossProfit.toFixed(2),
+      profitMargin: profitMargin.toFixed(1),
+      roi: roi.toFixed(1),
+    };
+  };
+
+  const getSourceProductForSupplier = (productId: string): HotProduct | undefined => {
+    return selectedProducts.find(p => p.id === productId);
+  };
+
+  const exportSupplierResults = () => {
+    if (supplierMatchResults.length === 0) return;
+
+    const exportData: any[] = [];
+    supplierMatchResults.forEach(result => {
+      result.matched_suppliers.forEach((supplier, idx) => {
+        exportData.push({
+          source_product: result.source_product_title,
+          rank: idx + 1,
+          supplier_title: supplier.title,
+          price_cny: supplier.price,
+          moq: supplier.moq,
+          sold_count: supplier.sold_count,
+          supplier_name: supplier.supplier_name,
+          location: supplier.location || '',
+          is_verified: supplier.is_verified ? 'Yes' : 'No',
+          match_score: supplier.match_score?.toFixed(1) || '',
+          product_url: supplier.product_url,
+        });
+      });
+    });
+
+    const csvContent = [
+      Object.keys(exportData[0]).join(','),
+      ...exportData.map(row => Object.values(row).map(v => `"${v}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `1688_suppliers_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
   };
 
   const rowSelection: TableRowSelection<HotProduct> = {
@@ -532,6 +624,14 @@ const Dashboard = () => {
                   <Button icon={<ExportOutlined />} onClick={handleExportSelected}>
                     {t('dashboard.exportSelected')}
                   </Button>
+                  <Button
+                    type="primary"
+                    icon={<ShopOutlined />}
+                    onClick={handleMatch1688Suppliers}
+                    style={{ background: '#ff6600', borderColor: '#ff6600' }}
+                  >
+                    {t('suppliers.match1688')}
+                  </Button>
                   <Button type="primary" icon={<FileAddOutlined />} onClick={handleGenerateComparisonReport} disabled={selectedProducts.length < 2}>
                     {t('dashboard.generateComparisonReport')}
                   </Button>
@@ -541,6 +641,355 @@ const Dashboard = () => {
           )}
         </div>
       )}
+
+      {/* 1688 Supplier Match Drawer */}
+      <Drawer
+        title={
+          <Space>
+            <ShopOutlined style={{ color: '#ff6600' }} />
+            {t('suppliers.matchResults')}
+          </Space>
+        }
+        placement="right"
+        width={900}
+        open={supplierDrawerVisible}
+        onClose={() => setSupplierDrawerVisible(false)}
+        extra={
+          <Space>
+            <Button icon={<ExportOutlined />} onClick={exportSupplierResults} disabled={supplierMatchResults.length === 0}>
+              {t('suppliers.exportPurchaseList')}
+            </Button>
+          </Space>
+        }
+      >
+        {/* Match Settings */}
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Row gutter={16} align="middle">
+            <Col span={6}>
+              <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>{t('suppliers.maxPriceLabel')} (CNY)</div>
+              <Slider
+                min={100}
+                max={1000}
+                step={50}
+                value={supplierMaxPrice}
+                onChange={setSupplierMaxPrice}
+                marks={{ 100: '100', 500: '500', 1000: '1000' }}
+              />
+            </Col>
+            <Col span={4}>
+              <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>{t('suppliers.limitLabel')}</div>
+              <InputNumber
+                min={5}
+                max={20}
+                value={supplierLimit}
+                onChange={(v) => setSupplierLimit(v || 10)}
+                style={{ width: '100%' }}
+              />
+            </Col>
+            <Col span={6}>
+              <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>{t('suppliers.includeLargeItems')}</div>
+              <Switch checked={includeLargeItems} onChange={setIncludeLargeItems} />
+            </Col>
+            <Col span={8} style={{ textAlign: 'right' }}>
+              <Button
+                type="primary"
+                icon={<SearchOutlined />}
+                onClick={handleMatch1688Suppliers}
+                loading={supplierLoading}
+                style={{ background: '#ff6600', borderColor: '#ff6600' }}
+              >
+                {supplierLoading ? t('suppliers.matching') : t('suppliers.startMatching')}
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+
+        {/* Loading State */}
+        {supplierLoading && (
+          <div style={{ textAlign: 'center', padding: 60 }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 16, color: '#666' }}>{t('suppliers.matching')}</div>
+          </div>
+        )}
+
+        {/* Match Results */}
+        {!supplierLoading && supplierMatchResults.length > 0 && (
+          <div>
+            {supplierMatchResults.map((result, resultIdx) => {
+              const sourceProduct = getSourceProductForSupplier(result.source_product_id);
+              return (
+                <Card
+                  key={result.source_product_id}
+                  title={
+                    <Space>
+                      <Tag color="blue">{resultIdx + 1}</Tag>
+                      <span style={{ fontWeight: 500 }}>{result.source_product_title.substring(0, 50)}...</span>
+                      <Tag color="green">{sourceProduct?.currency} {Number(sourceProduct?.price).toFixed(2)}</Tag>
+                    </Space>
+                  }
+                  size="small"
+                  style={{ marginBottom: 16 }}
+                  extra={
+                    <Space size="small">
+                      <span style={{ fontSize: 12, color: '#666' }}>
+                        {t('suppliers.searchKeywords')}: {result.search_keywords.join(', ')}
+                      </span>
+                      <Tag>{result.match_count} {t('suppliers.topSuppliers', { count: result.match_count })}</Tag>
+                    </Space>
+                  }
+                >
+                  {result.matched_suppliers.length === 0 ? (
+                    <Alert
+                      message={t('suppliers.noSuppliers')}
+                      description={t('suppliers.tryAnotherKeyword')}
+                      type="warning"
+                      showIcon
+                    />
+                  ) : (
+                    <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+                      {result.matched_suppliers.map((supplier, idx) => (
+                        <Card
+                          key={supplier.offer_id}
+                          size="small"
+                          style={{ marginBottom: 8 }}
+                          hoverable
+                        >
+                          <Row gutter={16} align="middle">
+                            <Col span={2}>
+                              <Tag color={idx < 3 ? 'gold' : 'default'} style={{ fontSize: 14 }}>
+                                #{idx + 1}
+                              </Tag>
+                            </Col>
+                            <Col span={3}>
+                              {supplier.image_url ? (
+                                <Image
+                                  src={supplier.image_url}
+                                  width={60}
+                                  height={60}
+                                  style={{ objectFit: 'cover', borderRadius: 4 }}
+                                  fallback="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+                                />
+                              ) : (
+                                <div style={{ width: 60, height: 60, background: '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4 }}>
+                                  <PictureOutlined style={{ color: '#bfbfbf', fontSize: 24 }} />
+                                </div>
+                              )}
+                            </Col>
+                            <Col span={9}>
+                              <div style={{ fontWeight: 500, marginBottom: 4 }}>
+                                {supplier.title.substring(0, 40)}...
+                              </div>
+                              <Space size="small" wrap>
+                                <Tag color="red" style={{ fontWeight: 'bold' }}>
+                                  {supplier.price_range || `\u00A5${supplier.price}`}
+                                </Tag>
+                                <Tag>{t('suppliers.moq')}: {supplier.moq}</Tag>
+                                <Tag color="green">{t('suppliers.soldCount')}: {supplier.sold_count}</Tag>
+                              </Space>
+                            </Col>
+                            <Col span={5}>
+                              <div style={{ fontSize: 12 }}>
+                                <div style={{ marginBottom: 4 }}>
+                                  <ShopOutlined style={{ marginRight: 4 }} />
+                                  {supplier.supplier_name.substring(0, 15)}
+                                  {supplier.is_verified && (
+                                    <Tag color="gold" style={{ marginLeft: 4 }} size="small">
+                                      <SafetyCertificateOutlined /> {t('suppliers.verified')}
+                                    </Tag>
+                                  )}
+                                </div>
+                                {supplier.location && (
+                                  <div style={{ color: '#666' }}>
+                                    <EnvironmentOutlined style={{ marginRight: 4 }} />
+                                    {supplier.location}
+                                  </div>
+                                )}
+                                {supplier.supplier_rating && (
+                                  <Rate disabled defaultValue={supplier.supplier_rating} style={{ fontSize: 12 }} />
+                                )}
+                              </div>
+                            </Col>
+                            <Col span={5} style={{ textAlign: 'right' }}>
+                              <div style={{ marginBottom: 8 }}>
+                                <Tag color="blue">{t('suppliers.matchScore')}: {supplier.match_score?.toFixed(0)}</Tag>
+                              </div>
+                              <Space size="small">
+                                <Tooltip title={t('suppliers.calculateProfit')}>
+                                  <Button
+                                    size="small"
+                                    icon={<CalculatorOutlined />}
+                                    onClick={() => {
+                                      setSelectedSupplier(supplier);
+                                      setProfitModalVisible(true);
+                                    }}
+                                  />
+                                </Tooltip>
+                                <Tooltip title={t('suppliers.visit1688')}>
+                                  <Button
+                                    size="small"
+                                    type="primary"
+                                    icon={<LinkOutlined />}
+                                    href={supplier.product_url}
+                                    target="_blank"
+                                    style={{ background: '#ff6600', borderColor: '#ff6600' }}
+                                  />
+                                </Tooltip>
+                              </Space>
+                            </Col>
+                          </Row>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {/* No Results */}
+        {!supplierLoading && supplierMatchResults.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 60, color: '#666' }}>
+            <ShopOutlined style={{ fontSize: 48, marginBottom: 16 }} />
+            <div>{t('suppliers.noMatch')}</div>
+          </div>
+        )}
+      </Drawer>
+
+      {/* Profit Calculator Modal */}
+      <Modal
+        title={
+          <Space>
+            <CalculatorOutlined />
+            {t('suppliers.profitCalculator')}
+          </Space>
+        }
+        open={profitModalVisible}
+        onCancel={() => setProfitModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setProfitModalVisible(false)}>
+            {t('suppliers.close')}
+          </Button>
+        ]}
+        width={600}
+      >
+        {selectedSupplier && (() => {
+          // Find the source product for this supplier
+          const matchResult = supplierMatchResults.find(r =>
+            r.matched_suppliers.some(s => s.offer_id === selectedSupplier.offer_id)
+          );
+          const sourceProduct = matchResult ? getSourceProductForSupplier(matchResult.source_product_id) : null;
+
+          if (!sourceProduct) return <div>Source product not found</div>;
+
+          const profitData = calculateEstimatedProfit(selectedSupplier, sourceProduct);
+
+          return (
+            <>
+              <Descriptions bordered column={1} size="small" style={{ marginBottom: 16 }}>
+                <Descriptions.Item label={t('suppliers.sourceProduct')}>
+                  {sourceProduct.title.substring(0, 50)}...
+                  <Tag color="blue" style={{ marginLeft: 8 }}>
+                    {sourceProduct.currency} {Number(sourceProduct.price).toFixed(2)}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label={t('suppliers.supplierInfo')}>
+                  {selectedSupplier.supplier_name}
+                  <Tag color="red" style={{ marginLeft: 8 }}>
+                    \u00A5{selectedSupplier.price}
+                  </Tag>
+                </Descriptions.Item>
+              </Descriptions>
+
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ marginBottom: 8 }}>{t('suppliers.quantity')}</div>
+                <InputNumber
+                  min={selectedSupplier.moq}
+                  value={profitQuantity}
+                  onChange={(v) => setProfitQuantity(v || 100)}
+                  style={{ width: 200 }}
+                  addonAfter="pcs"
+                />
+                <span style={{ marginLeft: 8, color: '#666', fontSize: 12 }}>
+                  {t('suppliers.moq')}: {selectedSupplier.moq}
+                </span>
+              </div>
+
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Card size="small">
+                    <Statistic
+                      title={t('suppliers.purchaseCost') + ' (CNY)'}
+                      value={selectedSupplier.price * profitQuantity}
+                      precision={2}
+                      prefix="\u00A5"
+                    />
+                  </Card>
+                </Col>
+                <Col span={12}>
+                  <Card size="small">
+                    <Statistic
+                      title={t('suppliers.shippingCost') + ' (CNY)'}
+                      value={15 * profitQuantity}
+                      precision={2}
+                      prefix="\u00A5"
+                    />
+                  </Card>
+                </Col>
+              </Row>
+
+              <Divider />
+
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Card size="small">
+                    <Statistic
+                      title={t('suppliers.totalCost') + ` (${sourceProduct.currency})`}
+                      value={profitData.totalCostTarget}
+                      precision={2}
+                      prefix={sourceProduct.currency === 'NZD' ? 'NZ$' : 'A$'}
+                    />
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card size="small">
+                    <Statistic
+                      title={t('suppliers.grossProfit')}
+                      value={profitData.grossProfit}
+                      precision={2}
+                      prefix={sourceProduct.currency === 'NZD' ? 'NZ$' : 'A$'}
+                      valueStyle={{ color: Number(profitData.grossProfit) > 0 ? '#3f8600' : '#cf1322' }}
+                    />
+                  </Card>
+                </Col>
+                <Col span={8}>
+                  <Card size="small">
+                    <Statistic
+                      title={t('suppliers.profitMargin')}
+                      value={profitData.profitMargin}
+                      precision={1}
+                      suffix="%"
+                      valueStyle={{ color: Number(profitData.profitMargin) > 30 ? '#3f8600' : Number(profitData.profitMargin) > 15 ? '#faad14' : '#cf1322' }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+
+              <div style={{ marginTop: 16, padding: 12, background: '#f6f8fa', borderRadius: 4 }}>
+                <div style={{ fontSize: 12, color: '#666' }}>
+                  <strong>{t('suppliers.notes')}:</strong>
+                  <ul style={{ margin: '8px 0 0 20px', padding: 0 }}>
+                    <li>{t('suppliers.exchangeRate')}: 1 {sourceProduct.currency} = {sourceProduct.currency === 'NZD' ? '4.30' : '4.70'} CNY</li>
+                    <li>{t('suppliers.shippingCost')}: ~15 CNY/unit (estimated)</li>
+                    <li>Platform fees (~15%) not included</li>
+                    <li>Actual costs may vary</li>
+                  </ul>
+                </div>
+              </div>
+            </>
+          );
+        })()}
+      </Modal>
     </div>
   );
 };

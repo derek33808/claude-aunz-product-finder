@@ -7,6 +7,11 @@ import type {
   ProductSearchParams,
   TrendData,
   RelatedQueries,
+  Supplier1688,
+  Supplier1688Detail,
+  SupplierMatchRequest,
+  SupplierMatchResult,
+  ProfitEstimate1688,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -134,6 +139,84 @@ export const reportsApi = {
 
   delete: async (id: string) => {
     const response = await api.delete(`/api/reports/${id}`);
+    return response.data;
+  },
+};
+
+// Suppliers API (1688)
+export const suppliersApi = {
+  match: async (request: SupplierMatchRequest): Promise<SupplierMatchResult[]> => {
+    const response = await api.post('/api/suppliers/match', request);
+    return response.data;
+  },
+
+  search: async (
+    keyword: string,
+    maxPrice = 500,
+    limit = 20,
+    sourcePrice = 0,
+    sourceCurrency = 'AUD'
+  ): Promise<Supplier1688[]> => {
+    const response = await api.get('/api/suppliers/search', {
+      params: {
+        keyword,
+        max_price: maxPrice,
+        limit,
+        source_price: sourcePrice,
+        source_currency: sourceCurrency,
+      },
+    });
+    return response.data;
+  },
+
+  getDetails: async (offerId: string): Promise<Supplier1688Detail> => {
+    const response = await api.get(`/api/suppliers/${offerId}`);
+    return response.data;
+  },
+
+  translateKeywords: async (title: string): Promise<{
+    original_title: string;
+    extracted_keywords: string[];
+    chinese_keywords: string[];
+  }> => {
+    const response = await api.get('/api/suppliers/translate', {
+      params: { title },
+    });
+    return response.data;
+  },
+
+  estimateProfit: async (
+    sourceProductId: string,
+    supplierOfferId: string,
+    quantity = 100,
+    shippingMethod = 'standard'
+  ): Promise<ProfitEstimate1688> => {
+    const response = await api.post('/api/suppliers/profit-estimate', {
+      source_product_id: sourceProductId,
+      supplier_offer_id: supplierOfferId,
+      quantity,
+      shipping_method: shippingMethod,
+    });
+    return response.data;
+  },
+
+  getExchangeRates: async (): Promise<{
+    rates: Record<string, number>;
+    note: string;
+    updated: string;
+  }> => {
+    const response = await api.get('/api/suppliers/exchange-rates');
+    return response.data;
+  },
+
+  batchMatch: async (
+    productIds: string[],
+    maxPrice = 500,
+    limit = 10
+  ): Promise<SupplierMatchResult[]> => {
+    const response = await api.post('/api/suppliers/batch-match', productIds, {
+      params: { max_price: maxPrice, limit },
+    });
     return response.data;
   },
 };

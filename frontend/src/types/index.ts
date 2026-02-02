@@ -157,3 +157,77 @@ export interface PaginatedResponse<T> {
   page: number;
   page_size: number;
 }
+
+// ============ 1688 Supplier Types ============
+
+export interface Supplier1688 {
+  id?: string;
+  offer_id: string;
+  title: string;
+  price: number;
+  price_range?: string;
+  moq: number;
+  sold_count: number;
+  image_url?: string;
+  product_url: string;
+
+  // Supplier info
+  supplier_name: string;
+  supplier_url?: string;
+  supplier_years?: number;
+  supplier_rating?: number;
+  is_verified: boolean;
+
+  // Logistics info
+  location?: string;
+  shipping_estimate?: string;
+
+  // Product attributes
+  weight?: number;
+  dimensions?: string;
+  is_small_medium: boolean;
+
+  // Matching
+  match_score?: number;
+  profit_margin?: number;
+  created_at?: string;
+}
+
+export interface Supplier1688Detail extends Supplier1688 {
+  description?: string;
+  specifications?: Record<string, string>;
+  price_tiers?: Array<{ quantity: number; price: number }>;
+  images?: string[];
+  shipping_methods?: Array<{ name: string; price: number; days: string }>;
+}
+
+export interface SupplierMatchRequest {
+  product_ids: string[];
+  max_price?: number;
+  limit?: number;
+  include_large?: boolean;
+}
+
+export interface SupplierMatchResult {
+  source_product_id: string;
+  source_product_title: string;
+  search_keywords: string[];
+  matched_suppliers: Supplier1688[];
+  match_count: number;
+}
+
+export interface ProfitEstimate1688 {
+  source_price: number;
+  source_currency: string;
+  supplier_price_cny: number;
+  purchase_cost_cny: number;
+  shipping_cost_cny: number;
+  total_cost_cny: number;
+  total_cost_target_currency: number;
+  exchange_rate: number;
+  gross_profit: number;
+  profit_margin: number;
+  roi: number;
+  break_even_quantity: number;
+  notes: string[];
+}

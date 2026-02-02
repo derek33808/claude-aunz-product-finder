@@ -168,3 +168,95 @@ class ShareLinkResponse(BaseModel):
     share_url: str
     expires_at: datetime
     has_password: bool
+
+
+# ============ 1688 Supplier Schemas ============
+
+class Supplier1688Base(BaseModel):
+    """Base 1688 supplier schema."""
+    offer_id: str = Field(..., description="1688 product offer ID")
+    title: str
+    price: float = Field(..., description="Price in CNY")
+    price_range: Optional[str] = Field(None, description="Price range (e.g., '9.9-15.8')")
+    moq: int = Field(1, description="Minimum Order Quantity")
+    sold_count: int = Field(0, description="Total sold count")
+    image_url: Optional[str] = None
+    product_url: str
+
+    # Supplier info
+    supplier_name: str
+    supplier_url: Optional[str] = None
+    supplier_years: Optional[int] = Field(None, description="Years in business")
+    supplier_rating: Optional[float] = Field(None, description="Supplier rating (0-5)")
+    is_verified: bool = Field(False, description="Is verified supplier (诚信通)")
+
+    # Logistics info
+    location: Optional[str] = Field(None, description="Shipping location")
+    shipping_estimate: Optional[str] = None
+
+    # Product attributes
+    weight: Optional[float] = Field(None, description="Weight in kg")
+    dimensions: Optional[str] = Field(None, description="Dimensions (e.g., '15x10x5cm')")
+    is_small_medium: bool = Field(True, description="Is small/medium sized item")
+
+
+class Supplier1688Response(Supplier1688Base):
+    """1688 supplier response schema."""
+    id: Optional[str] = None
+    match_score: Optional[float] = Field(None, description="Matching score (0-100)")
+    profit_margin: Optional[float] = Field(None, description="Estimated profit margin")
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class Supplier1688Detail(Supplier1688Base):
+    """Detailed 1688 supplier information."""
+    description: Optional[str] = None
+    specifications: Optional[dict] = Field(default_factory=dict)
+    price_tiers: Optional[List[dict]] = Field(default_factory=list)
+    images: Optional[List[str]] = Field(default_factory=list)
+    shipping_methods: Optional[List[dict]] = Field(default_factory=list)
+
+
+class SupplierMatchRequest(BaseModel):
+    """Request for matching suppliers."""
+    product_ids: List[str] = Field(..., description="List of AU/NZ product IDs to match")
+    max_price: float = Field(500, le=1000, description="Max price in CNY")
+    limit: int = Field(10, ge=1, le=20, description="Number of suppliers per product")
+    include_large: bool = Field(False, description="Include large items")
+
+
+class SupplierMatchResult(BaseModel):
+    """Result of supplier matching for a single product."""
+    source_product_id: str
+    source_product_title: str
+    search_keywords: List[str]
+    matched_suppliers: List[Supplier1688Response]
+    match_count: int
+
+
+class ProfitEstimateRequest(BaseModel):
+    """Request for profit estimation."""
+    source_product_id: str
+    supplier_offer_id: str
+    quantity: int = Field(100, ge=1, description="Purchase quantity")
+    shipping_method: str = Field("standard", description="Shipping method")
+
+
+class ProfitEstimateResponse(BaseModel):
+    """Profit estimation response."""
+    source_price: float
+    source_currency: str
+    supplier_price_cny: float
+    purchase_cost_cny: float
+    shipping_cost_cny: float
+    total_cost_cny: float
+    total_cost_target_currency: float
+    exchange_rate: float
+    gross_profit: float
+    profit_margin: float
+    roi: float
+    break_even_quantity: int
+    notes: List[str] = Field(default_factory=list)

@@ -921,9 +921,936 @@ frontend/
 
 ---
 
+## Phase 6: 1688 供应商匹配模块 (V2.0)
+
+### 6.1 功能概述
+
+**业务场景**: 跨境电商选品 -> 1688 采购
+
+用户在 AU/NZ 市场发现热销产品后，需要在 1688 上找到匹配的供应商，评估采购可行性。
+
+**核心功能**:
+1. 将选中的 AU/NZ 热销产品自动匹配到 1688 供应商
+2. 输出 Top 10 匹配供应商
+3. 筛选条件：价格 < 500 CNY，中小件商品（物流友好）
+4. 展示供应商详情、价格、销量、评价等信息
+
+### 6.2 1688 数据获取方案
+
+由于 1688 没有官方开放 API，采用 **Playwright 爬虫方案**（与 TradeMe 爬虫类似）。
+
+#### 6.2.1 技术架构
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    1688 Supplier Matching                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │  AU/NZ 产品  │ -> │  关键词提取   │ -> │  中文翻译    │  │
+│  │  (Selected)  │    │  (NLP/Rules) │    │  (翻译API)   │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │
+│                                                  │           │
+│                                                  ▼           │
+│                              ┌──────────────────────────┐   │
+│                              │    1688 Scraper          │   │
+│                              │    (Playwright)          │   │
+│                              │                          │   │
+│                              │  - 搜索产品              │   │
+│                              │  - 提取供应商信息        │   │
+│                              │  - 获取价格/销量/评价    │   │
+│                              └──────────────────────────┘   │
+│                                                  │           │
+│                                                  ▼           │
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐  │
+│  │  筛选过滤     │ <- │  数据清洗     │ <- │  原始数据    │  │
+│  │ (价格/尺寸)  │    │  (标准化)    │    │              │  │
+│  └──────────────┘    └──────────────┘    └──────────────┘  │
+│           │                                                  │
+│           ▼                                                  │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              Top 10 供应商结果                         │   │
+│  │  - 供应商名称、店铺链接                               │   │
+│  │  - 产品价格（含阶梯价）                               │   │
+│  │  - 最小起订量 (MOQ)                                   │   │
+│  │  - 销量数据                                           │   │
+│  │  - 店铺评分/年限                                      │   │
+│  │  - 发货地/物流预估                                    │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+#### 6.2.2 关键词匹配策略
+
+**步骤 1: 从 AU/NZ 产品标题提取关键词**
+```python
+def extract_keywords(product_title: str) -> List[str]:
+    """
+    从产品标题提取核心关键词
+    例如: "Wireless Bluetooth Earbuds with Charging Case"
+    -> ["wireless earbuds", "bluetooth earbuds", "earbuds charging case"]
+    """
+    # 1. 移除品牌名、型号等噪音
+    # 2. 提取名词短语
+    # 3. 识别产品核心词
+```
+
+**步骤 2: 英文关键词翻译为中文**
+```python
+def translate_to_chinese(keywords: List[str]) -> List[str]:
+    """
+    使用翻译服务将关键词翻译为中文
+    方案:
+    - 优先: 本地产品词库映射 (电子产品、家居用品等常见品类)
+    - 备选: Google Translate API / 百度翻译 API
+
+    例如: "wireless earbuds" -> "无线耳机", "蓝牙耳机"
+    """
+```
+
+**步骤 3: 组合搜索词**
+```python
+# 搜索策略:
+# 1. 主关键词直接搜索
+# 2. 添加品类限定词 (如 "批发", "工厂直销")
+# 3. 多个关键词组合尝试
+```
+
+#### 6.2.3 1688 爬虫实现
+
+```python
+class Alibaba1688Scraper:
+    """1688.com 供应商搜索爬虫"""
+
+    BASE_URL = "https://s.1688.com"
+
+    async def search_suppliers(
+        self,
+        keyword: str,
+        max_price: float = 500,  # 最高价格 (CNY)
+        limit: int = 20,
+    ) -> List[Supplier1688]:
+        """
+        搜索 1688 供应商
+
+        Args:
+            keyword: 中文搜索关键词
+            max_price: 最高价格限制 (人民币)
+            limit: 返回结果数量
+        """
+        pass
+
+    async def get_product_details(
+        self,
+        offer_id: str
+    ) -> Supplier1688Detail:
+        """获取产品详情页信息"""
+        pass
+```
+
+### 6.3 数据模型
+
+#### 6.3.1 供应商数据结构
+
+```python
+class Supplier1688(BaseModel):
+    """1688 供应商信息"""
+    offer_id: str              # 1688 产品ID
+    title: str                 # 产品标题
+    price: float               # 价格 (CNY)
+    price_range: Optional[str] # 阶梯价格 (如 "9.9-15.8")
+    moq: int                   # 最小起订量
+    sold_count: int            # 销量
+    image_url: str             # 产品图片
+    product_url: str           # 产品链接
+
+    # 供应商信息
+    supplier_name: str         # 供应商名称
+    supplier_url: str          # 店铺链接
+    supplier_years: int        # 经营年限
+    supplier_rating: float     # 店铺评分
+    is_verified: bool          # 是否实力商家/诚信通
+
+    # 物流信息
+    location: str              # 发货地 (如 "广东深圳")
+    shipping_estimate: str     # 物流预估 (如 "3-5天")
+
+    # 商品属性
+    weight: Optional[float]    # 重量 (kg)
+    dimensions: Optional[str]  # 尺寸 (如 "15x10x5cm")
+    is_small_medium: bool      # 是否中小件商品
+
+
+class SupplierMatchResult(BaseModel):
+    """供应商匹配结果"""
+    source_product: Product       # 源产品 (AU/NZ)
+    matched_suppliers: List[Supplier1688]  # 匹配的供应商列表
+    match_score: float            # 匹配度评分 (0-100)
+    search_keywords: List[str]    # 使用的搜索关键词
+    profit_estimate: ProfitEstimate  # 利润估算
+```
+
+#### 6.3.2 数据库表设计
+
+```sql
+-- 1688 供应商表
+CREATE TABLE suppliers_1688 (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    offer_id VARCHAR(50) NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    price DECIMAL(10,2),
+    price_range VARCHAR(50),
+    moq INTEGER DEFAULT 1,
+    sold_count INTEGER DEFAULT 0,
+    image_url TEXT,
+    product_url TEXT,
+
+    -- 供应商信息
+    supplier_name VARCHAR(200),
+    supplier_url TEXT,
+    supplier_years INTEGER,
+    supplier_rating DECIMAL(2,1),
+    is_verified BOOLEAN DEFAULT false,
+
+    -- 物流信息
+    location VARCHAR(100),
+
+    -- 商品属性
+    weight DECIMAL(10,3),
+    dimensions VARCHAR(100),
+    is_small_medium BOOLEAN DEFAULT true,
+
+    -- 元数据
+    raw_data JSONB,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 产品-供应商匹配表
+CREATE TABLE product_supplier_matches (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_id UUID REFERENCES products(id),
+    supplier_id UUID REFERENCES suppliers_1688(id),
+    match_score DECIMAL(5,2),      -- 匹配度评分
+    search_keyword VARCHAR(200),    -- 搜索关键词
+    profit_margin DECIMAL(5,2),     -- 预估利润率
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+
+    UNIQUE(product_id, supplier_id)
+);
+
+-- 索引
+CREATE INDEX idx_suppliers_1688_price ON suppliers_1688(price);
+CREATE INDEX idx_suppliers_1688_sold ON suppliers_1688(sold_count DESC);
+CREATE INDEX idx_product_supplier_matches_product ON product_supplier_matches(product_id);
+```
+
+### 6.4 筛选逻辑
+
+#### 6.4.1 价格筛选
+
+```python
+# 最高价格: 500 CNY
+MAX_PRICE_CNY = 500
+
+# 汇率转换 (实时获取或使用固定汇率)
+EXCHANGE_RATES = {
+    "AUD_CNY": 4.70,  # 1 AUD = 4.70 CNY
+    "NZD_CNY": 4.30,  # 1 NZD = 4.30 CNY
+}
+
+def filter_by_price(supplier: Supplier1688, max_price: float = 500) -> bool:
+    """价格筛选: 供应商价格 < max_price CNY"""
+    return supplier.price <= max_price
+```
+
+#### 6.4.2 中小件商品筛选
+
+```python
+# 中小件商品定义 (适合国际物流)
+SIZE_LIMITS = {
+    "max_weight_kg": 5,        # 最大重量 5kg
+    "max_length_cm": 60,       # 最长边 60cm
+    "max_volume_cm3": 50000,   # 最大体积 50000 cm3 (约50x50x20)
+}
+
+def filter_by_size(supplier: Supplier1688) -> bool:
+    """
+    中小件商品筛选
+
+    判断逻辑:
+    1. 如果有明确重量信息: 重量 < 5kg
+    2. 如果有尺寸信息: 解析并计算
+    3. 如果无信息: 基于品类推断
+       - 电子产品、配件、家居小件 -> 默认中小件
+       - 家具、大型电器 -> 排除
+    """
+    # 重量检查
+    if supplier.weight and supplier.weight > SIZE_LIMITS["max_weight_kg"]:
+        return False
+
+    # 尺寸检查
+    if supplier.dimensions:
+        # 解析尺寸 "60x40x30cm"
+        dimensions = parse_dimensions(supplier.dimensions)
+        if dimensions:
+            length, width, height = dimensions
+            if max(length, width, height) > SIZE_LIMITS["max_length_cm"]:
+                return False
+            if length * width * height > SIZE_LIMITS["max_volume_cm3"]:
+                return False
+
+    return supplier.is_small_medium
+
+
+def parse_dimensions(dim_str: str) -> Optional[Tuple[float, float, float]]:
+    """解析尺寸字符串 '60x40x30cm' -> (60, 40, 30)"""
+    import re
+    match = re.search(r"(\d+\.?\d*)\s*[xX*]\s*(\d+\.?\d*)\s*[xX*]\s*(\d+\.?\d*)", dim_str)
+    if match:
+        return (float(match.group(1)), float(match.group(2)), float(match.group(3)))
+    return None
+```
+
+#### 6.4.3 综合排序算法
+
+```python
+def calculate_supplier_score(
+    supplier: Supplier1688,
+    source_product: Product,
+) -> float:
+    """
+    计算供应商综合评分 (0-100)
+
+    评分维度:
+    - 价格竞争力: 30% (越低越好，考虑利润空间)
+    - 供应商信誉: 25% (店铺评分、年限、认证)
+    - 销量表现:   20% (销量越高越可靠)
+    - 物流友好:   15% (发货地、尺寸重量)
+    - 匹配度:     10% (关键词匹配程度)
+    """
+
+    # 1. 价格竞争力评分 (0-100)
+    # 假设目标利润率 50%, 计算与目标的差距
+    target_cost = source_product.price * 0.3  # 目标成本 30% 售价
+    target_cost_cny = target_cost * EXCHANGE_RATES.get(f"{source_product.currency}_CNY", 4.5)
+
+    if supplier.price <= target_cost_cny * 0.5:
+        price_score = 100  # 成本低于目标的50%, 满分
+    elif supplier.price <= target_cost_cny:
+        price_score = 70 + 30 * (1 - supplier.price / target_cost_cny)
+    elif supplier.price <= target_cost_cny * 1.5:
+        price_score = 40
+    else:
+        price_score = 20
+
+    # 2. 供应商信誉评分 (0-100)
+    reputation_score = 0
+    if supplier.supplier_rating:
+        reputation_score += supplier.supplier_rating * 15  # 最高75分
+    if supplier.is_verified:
+        reputation_score += 15
+    if supplier.supplier_years:
+        reputation_score += min(supplier.supplier_years * 2, 10)  # 最高10分
+
+    # 3. 销量评分 (0-100)
+    import math
+    sales_score = min(math.log10(supplier.sold_count + 1) * 25, 100) if supplier.sold_count > 0 else 0
+
+    # 4. 物流友好评分 (0-100)
+    logistics_score = 70  # 基础分
+    if supplier.is_small_medium:
+        logistics_score += 30
+    # 可以根据发货地添加分数
+
+    # 5. 匹配度评分 (基于搜索返回的排名)
+    # 这个在搜索结果中已经隐含了
+    match_score = 80  # 假设搜索结果排名靠前
+
+    # 综合评分
+    final_score = (
+        price_score * 0.30 +
+        reputation_score * 0.25 +
+        sales_score * 0.20 +
+        logistics_score * 0.15 +
+        match_score * 0.10
+    )
+
+    return round(final_score, 2)
+```
+
+### 6.5 API 接口设计
+
+```python
+# POST /api/suppliers/match
+# 匹配 1688 供应商
+@router.post("/match", response_model=List[SupplierMatchResult])
+async def match_suppliers(
+    product_ids: List[UUID],           # 要匹配的产品ID列表
+    max_price: float = Query(500, le=1000),  # 最高价格 (CNY)
+    limit: int = Query(10, le=20),     # 每个产品返回的供应商数量
+    include_large: bool = False,        # 是否包含大件商品
+):
+    """
+    为选中的 AU/NZ 产品匹配 1688 供应商
+
+    Returns:
+        每个产品的 Top N 供应商列表
+    """
+
+
+# GET /api/suppliers/search
+# 直接搜索 1688 供应商
+@router.get("/search", response_model=List[Supplier1688])
+async def search_1688_suppliers(
+    keyword: str,                       # 中文关键词
+    max_price: float = Query(500),
+    limit: int = Query(20),
+):
+    """直接在 1688 搜索供应商"""
+
+
+# GET /api/suppliers/{offer_id}
+# 获取供应商详情
+@router.get("/{offer_id}", response_model=Supplier1688Detail)
+async def get_supplier_details(
+    offer_id: str,
+):
+    """获取 1688 产品详情"""
+
+
+# POST /api/suppliers/profit-estimate
+# 计算利润估算
+@router.post("/profit-estimate", response_model=ProfitEstimate)
+async def estimate_profit(
+    source_product_id: UUID,
+    supplier_offer_id: str,
+    quantity: int = 100,
+):
+    """
+    计算利润估算
+
+    包含:
+    - 采购成本 (含起订量)
+    - 国际物流预估
+    - 平台费用预估
+    - 毛利率计算
+    """
+```
+
+### 6.6 前端界面设计
+
+#### 6.6.1 交互流程
+
+```
+1. 用户在 Dashboard 选中热销产品 (已有功能)
+      │
+      ▼
+2. 点击 "匹配1688供应商" 按钮
+      │
+      ▼
+3. 显示匹配进度 (加载动画)
+      │
+      ▼
+4. 展示匹配结果面板
+   ┌──────────────────────────────────────────┐
+   │  源产品: Wireless Earbuds (AUD 59.99)   │
+   ├──────────────────────────────────────────┤
+   │  Top 10 供应商:                          │
+   │  ┌────────────────────────────────────┐  │
+   │  │ 1. 深圳XX电子厂                     │  │
+   │  │    价格: 29.9 CNY | MOQ: 100       │  │
+   │  │    评分: 4.8 | 销量: 50000+        │  │
+   │  │    [查看详情] [利润计算] [加入采购单]│  │
+   │  └────────────────────────────────────┘  │
+   │  ┌────────────────────────────────────┐  │
+   │  │ 2. 东莞XX科技                       │  │
+   │  │    ...                              │  │
+   │  └────────────────────────────────────┘  │
+   │  ...                                     │
+   └──────────────────────────────────────────┘
+      │
+      ▼
+5. 用户可以:
+   - 查看供应商详情
+   - 计算利润
+   - 导出采购清单
+```
+
+#### 6.6.2 界面组件
+
+**1. 匹配按钮 (Dashboard 已选产品面板)**
+```tsx
+<Button
+  type="primary"
+  icon={<TaobaoOutlined />}
+  onClick={handleMatch1688}
+  disabled={selectedProducts.length === 0}
+>
+  匹配1688供应商
+</Button>
+```
+
+**2. 供应商匹配结果弹窗/抽屉**
+```tsx
+<Drawer
+  title="1688 供应商匹配结果"
+  width={800}
+  open={supplierDrawerVisible}
+>
+  {selectedProducts.map(product => (
+    <Card key={product.id} title={product.title}>
+      <Table
+        dataSource={matchResults[product.id]?.suppliers}
+        columns={supplierColumns}
+        size="small"
+      />
+    </Card>
+  ))}
+</Drawer>
+```
+
+**3. 供应商卡片组件**
+```tsx
+const SupplierCard = ({ supplier, sourceProduct }) => (
+  <Card size="small" hoverable>
+    <Row gutter={16}>
+      <Col span={4}>
+        <Image src={supplier.image_url} width={80} />
+      </Col>
+      <Col span={14}>
+        <Typography.Text strong>{supplier.title}</Typography.Text>
+        <div>
+          <Tag color="red">¥{supplier.price}</Tag>
+          <Tag>MOQ: {supplier.moq}</Tag>
+          <Tag color="green">销量: {supplier.sold_count}</Tag>
+        </div>
+        <div>
+          <Rate disabled value={supplier.supplier_rating} />
+          <span>{supplier.supplier_name}</span>
+          {supplier.is_verified && <Tag color="gold">诚信通</Tag>}
+        </div>
+      </Col>
+      <Col span={6}>
+        <Statistic
+          title="预估利润率"
+          value={calculateProfitMargin(supplier, sourceProduct)}
+          suffix="%"
+        />
+        <Button type="link" href={supplier.product_url} target="_blank">
+          查看详情
+        </Button>
+      </Col>
+    </Row>
+  </Card>
+);
+```
+
+**4. 利润计算器弹窗**
+```tsx
+<Modal title="利润计算器" open={profitModalVisible}>
+  <Form>
+    <Form.Item label="采购数量">
+      <InputNumber min={supplier.moq} value={quantity} />
+    </Form.Item>
+    <Form.Item label="采购成本 (CNY)">
+      <Statistic value={supplier.price * quantity} />
+    </Form.Item>
+    <Form.Item label="国际物流 (预估)">
+      <Statistic value={estimatedShipping} />
+    </Form.Item>
+    <Form.Item label="售价 (AUD)">
+      <Statistic value={sourceProduct.price} />
+    </Form.Item>
+    <Divider />
+    <Form.Item label="预估毛利">
+      <Statistic
+        value={profitMargin}
+        suffix="%"
+        valueStyle={{ color: profitMargin > 30 ? 'green' : 'red' }}
+      />
+    </Form.Item>
+  </Form>
+</Modal>
+```
+
+### 6.7 国际化支持
+
+```json
+// en.json
+{
+  "suppliers": {
+    "match1688": "Match 1688 Suppliers",
+    "matching": "Matching suppliers...",
+    "matchResults": "Supplier Match Results",
+    "noMatch": "No matching suppliers found",
+    "price": "Price",
+    "moq": "Min Order",
+    "soldCount": "Sold",
+    "rating": "Rating",
+    "verified": "Verified",
+    "location": "Location",
+    "viewDetails": "View Details",
+    "profitCalculator": "Profit Calculator",
+    "quantity": "Quantity",
+    "purchaseCost": "Purchase Cost",
+    "shippingCost": "Shipping Cost (Est.)",
+    "sellingPrice": "Selling Price",
+    "profitMargin": "Profit Margin",
+    "addToPurchaseList": "Add to Purchase List",
+    "exportPurchaseList": "Export Purchase List",
+    "filterByPrice": "Max Price (CNY)",
+    "filterBySize": "Small/Medium Items Only",
+    "supplierYears": "Years",
+    "topSuppliers": "Top {{count}} Suppliers"
+  }
+}
+
+// zh.json
+{
+  "suppliers": {
+    "match1688": "匹配1688供应商",
+    "matching": "正在匹配供应商...",
+    "matchResults": "供应商匹配结果",
+    "noMatch": "未找到匹配的供应商",
+    "price": "价格",
+    "moq": "起订量",
+    "soldCount": "销量",
+    "rating": "评分",
+    "verified": "诚信通",
+    "location": "发货地",
+    "viewDetails": "查看详情",
+    "profitCalculator": "利润计算器",
+    "quantity": "采购数量",
+    "purchaseCost": "采购成本",
+    "shippingCost": "物流费用(预估)",
+    "sellingPrice": "售价",
+    "profitMargin": "利润率",
+    "addToPurchaseList": "加入采购单",
+    "exportPurchaseList": "导出采购单",
+    "filterByPrice": "最高价格 (CNY)",
+    "filterBySize": "仅中小件商品",
+    "supplierYears": "年",
+    "topSuppliers": "Top {{count}} 供应商"
+  }
+}
+```
+
+### 6.8 测试策略
+
+#### 6.8.1 单元测试
+
+```python
+# backend/tests/services/test_alibaba1688_service.py
+
+class TestAlibaba1688Scraper:
+    """1688 爬虫单元测试"""
+
+    def test_extract_keywords_from_title(self):
+        """测试从产品标题提取关键词"""
+        title = "Wireless Bluetooth Earbuds with Charging Case"
+        keywords = extract_keywords(title)
+        assert "earbuds" in keywords[0].lower()
+        assert len(keywords) >= 1
+
+    def test_translate_keywords_to_chinese(self):
+        """测试关键词翻译"""
+        keywords = ["wireless earbuds", "bluetooth headphones"]
+        translated = translate_to_chinese(keywords)
+        assert len(translated) > 0
+        # 检查是否包含中文字符
+        assert any('\u4e00' <= c <= '\u9fff' for c in translated[0])
+
+    def test_filter_by_price(self):
+        """测试价格筛选"""
+        supplier = Supplier1688(price=300, ...)
+        assert filter_by_price(supplier, max_price=500) == True
+
+        supplier.price = 600
+        assert filter_by_price(supplier, max_price=500) == False
+
+    def test_filter_by_size_weight(self):
+        """测试尺寸重量筛选"""
+        supplier = Supplier1688(weight=3.0, is_small_medium=True, ...)
+        assert filter_by_size(supplier) == True
+
+        supplier.weight = 10.0
+        assert filter_by_size(supplier) == False
+
+    def test_filter_by_size_dimensions(self):
+        """测试尺寸筛选"""
+        supplier = Supplier1688(dimensions="30x20x10cm", ...)
+        assert filter_by_size(supplier) == True
+
+        supplier.dimensions = "100x80x60cm"
+        assert filter_by_size(supplier) == False
+
+    def test_parse_dimensions(self):
+        """测试尺寸解析"""
+        assert parse_dimensions("60x40x30cm") == (60, 40, 30)
+        assert parse_dimensions("60*40*30") == (60, 40, 30)
+        assert parse_dimensions("invalid") == None
+
+    def test_calculate_supplier_score(self):
+        """测试供应商评分计算"""
+        supplier = Supplier1688(
+            price=50,
+            supplier_rating=4.8,
+            supplier_years=5,
+            is_verified=True,
+            sold_count=10000,
+            ...
+        )
+        source_product = Product(price=100, currency="AUD", ...)
+
+        score = calculate_supplier_score(supplier, source_product)
+        assert 0 <= score <= 100
+        assert score > 50  # 好的供应商应该得分较高
+```
+
+#### 6.8.2 集成测试
+
+```python
+# backend/tests/api/test_suppliers.py
+
+class TestSuppliersAPI:
+    """供应商 API 集成测试"""
+
+    @pytest.mark.asyncio
+    async def test_match_suppliers_endpoint(self, client, mock_1688_data):
+        """测试供应商匹配接口"""
+        response = await client.post(
+            "/api/suppliers/match",
+            json={
+                "product_ids": ["uuid-1", "uuid-2"],
+                "max_price": 500,
+                "limit": 10
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2  # 两个产品的匹配结果
+        for result in data:
+            assert len(result["matched_suppliers"]) <= 10
+            for supplier in result["matched_suppliers"]:
+                assert supplier["price"] <= 500
+
+    @pytest.mark.asyncio
+    async def test_search_suppliers_endpoint(self, client, mock_1688_data):
+        """测试直接搜索接口"""
+        response = await client.get(
+            "/api/suppliers/search",
+            params={"keyword": "无线耳机", "max_price": 300, "limit": 5}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) <= 5
+        for supplier in data:
+            assert supplier["price"] <= 300
+
+    @pytest.mark.asyncio
+    async def test_profit_estimate_endpoint(self, client):
+        """测试利润估算接口"""
+        response = await client.post(
+            "/api/suppliers/profit-estimate",
+            json={
+                "source_product_id": "uuid-1",
+                "supplier_offer_id": "offer-123",
+                "quantity": 100
+            }
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "purchase_cost" in data
+        assert "shipping_cost" in data
+        assert "profit_margin" in data
+```
+
+#### 6.8.3 前端组件测试
+
+```tsx
+// frontend/src/__tests__/components/SupplierMatchPanel.test.tsx
+
+describe('SupplierMatchPanel', () => {
+  it('renders match button when products are selected', () => {
+    render(
+      <SupplierMatchPanel
+        selectedProducts={mockProducts}
+      />
+    );
+    expect(screen.getByText(/匹配1688供应商|Match 1688/i)).toBeInTheDocument();
+  });
+
+  it('disables match button when no products selected', () => {
+    render(
+      <SupplierMatchPanel
+        selectedProducts={[]}
+      />
+    );
+    expect(screen.getByRole('button')).toBeDisabled();
+  });
+
+  it('displays loading state during matching', async () => {
+    render(<SupplierMatchPanel selectedProducts={mockProducts} />);
+    fireEvent.click(screen.getByText(/匹配1688/i));
+    expect(screen.getByText(/正在匹配|Matching/i)).toBeInTheDocument();
+  });
+
+  it('displays supplier results after matching', async () => {
+    render(<SupplierMatchPanel selectedProducts={mockProducts} />);
+    fireEvent.click(screen.getByText(/匹配1688/i));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Top 10 供应商/i)).toBeInTheDocument();
+    });
+  });
+});
+
+describe('SupplierCard', () => {
+  it('renders supplier information correctly', () => {
+    render(<SupplierCard supplier={mockSupplier} sourceProduct={mockProduct} />);
+
+    expect(screen.getByText(mockSupplier.title)).toBeInTheDocument();
+    expect(screen.getByText(`¥${mockSupplier.price}`)).toBeInTheDocument();
+    expect(screen.getByText(`MOQ: ${mockSupplier.moq}`)).toBeInTheDocument();
+  });
+
+  it('shows verified badge for verified suppliers', () => {
+    const verifiedSupplier = { ...mockSupplier, is_verified: true };
+    render(<SupplierCard supplier={verifiedSupplier} sourceProduct={mockProduct} />);
+
+    expect(screen.getByText(/诚信通|Verified/i)).toBeInTheDocument();
+  });
+
+  it('calculates and displays profit margin', () => {
+    render(<SupplierCard supplier={mockSupplier} sourceProduct={mockProduct} />);
+
+    // 检查利润率显示
+    expect(screen.getByText(/%$/)).toBeInTheDocument();
+  });
+});
+
+describe('ProfitCalculator', () => {
+  it('calculates profit correctly', () => {
+    render(
+      <ProfitCalculator
+        supplier={mockSupplier}
+        sourceProduct={mockProduct}
+      />
+    );
+
+    const quantityInput = screen.getByLabelText(/数量|Quantity/i);
+    fireEvent.change(quantityInput, { target: { value: '100' } });
+
+    // 验证计算结果
+    expect(screen.getByText(/采购成本|Purchase Cost/i)).toBeInTheDocument();
+    expect(screen.getByText(/利润率|Profit Margin/i)).toBeInTheDocument();
+  });
+});
+```
+
+#### 6.8.4 E2E 测试
+
+```python
+# tests/e2e/test_supplier_matching.py
+
+class TestSupplierMatchingE2E:
+    """供应商匹配 E2E 测试"""
+
+    @pytest.mark.asyncio
+    async def test_complete_matching_flow(self, page):
+        """测试完整的供应商匹配流程"""
+        # 1. 打开 Dashboard
+        await page.goto("/")
+
+        # 2. 点击一键选爆品
+        await page.click('button:has-text("一键选爆品")')
+        await page.wait_for_selector('.hot-products-table')
+
+        # 3. 选择几个产品
+        await page.click('table tbody tr:nth-child(1) input[type="checkbox"]')
+        await page.click('table tbody tr:nth-child(2) input[type="checkbox"]')
+
+        # 4. 点击匹配1688供应商
+        await page.click('button:has-text("匹配1688供应商")')
+
+        # 5. 等待匹配结果
+        await page.wait_for_selector('.supplier-results', timeout=30000)
+
+        # 6. 验证结果显示
+        suppliers = await page.query_selector_all('.supplier-card')
+        assert len(suppliers) > 0
+
+        # 7. 点击查看详情
+        await page.click('.supplier-card:first-child button:has-text("查看详情")')
+
+        # 8. 验证详情页打开
+        assert await page.wait_for_selector('.supplier-detail-modal')
+
+    @pytest.mark.asyncio
+    async def test_profit_calculator(self, page):
+        """测试利润计算器"""
+        # ... 设置前置条件
+
+        # 打开利润计算器
+        await page.click('button:has-text("利润计算")')
+        await page.wait_for_selector('.profit-calculator-modal')
+
+        # 输入采购数量
+        await page.fill('input[name="quantity"]', '100')
+
+        # 验证计算结果更新
+        profit_margin = await page.text_content('.profit-margin-value')
+        assert '%' in profit_margin
+```
+
+### 6.9 实现计划
+
+#### Phase 6.1: 基础架构 (1-2 天)
+- [ ] 创建 1688 爬虫服务 (`alibaba1688_service.py`)
+- [ ] 定义数据模型和类型
+- [ ] 创建数据库表
+
+#### Phase 6.2: 爬虫开发 (2-3 天)
+- [ ] 实现 1688 搜索爬虫
+- [ ] 实现产品详情爬虫
+- [ ] 添加反爬虫处理 (延迟、代理等)
+- [ ] 关键词提取和翻译服务
+
+#### Phase 6.3: API 开发 (1-2 天)
+- [ ] 实现供应商匹配 API
+- [ ] 实现直接搜索 API
+- [ ] 实现利润估算 API
+- [ ] 添加筛选和排序逻辑
+
+#### Phase 6.4: 前端开发 (2-3 天)
+- [ ] 匹配按钮和触发逻辑
+- [ ] 供应商结果展示组件
+- [ ] 利润计算器组件
+- [ ] 国际化翻译
+
+#### Phase 6.5: 测试和优化 (2-3 天)
+- [ ] 单元测试
+- [ ] 集成测试
+- [ ] E2E 测试
+- [ ] 性能优化
+
+### 6.10 风险与对策
+
+| 风险 | 概率 | 影响 | 对策 |
+|------|------|------|------|
+| 1688 爬虫被封 | 高 | 高 | IP轮换、请求限速、模拟真实用户行为、备用数据源 |
+| 翻译不准确导致匹配差 | 中 | 中 | 建立产品词库、多关键词尝试、人工校正选项 |
+| 供应商信息变化快 | 中 | 低 | 实时查询、结果缓存时间短 (1小时) |
+| 中小件判断不准确 | 中 | 中 | 基于品类推断、用户可手动调整 |
+| 利润估算偏差大 | 中 | 低 | 显示"预估"标签、提供调整参数 |
+
+---
+
 ## 下一步
 
-1. 确认设计方案
-2. 初始化项目结构
-3. 从 eBay API + Google Trends 开始 MVP
-4. 完成基础报告生成功能 (PDF/Excel)
+1. ~~确认设计方案~~
+2. ~~初始化项目结构~~
+3. ~~从 eBay API + Google Trends 开始 MVP~~
+4. ~~完成基础报告生成功能 (PDF/Excel)~~
+5. **Phase 6: 实现 1688 供应商匹配模块** (当前)

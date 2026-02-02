@@ -63,6 +63,9 @@ uvicorn==0.39.0
 websockets==15.0.1
 yarl==1.22.0
 
+# Browser automation for 1688 scraping
+playwright==1.49.1
+
 # Testing dependencies
 pytest==8.3.5
 pytest-asyncio==0.24.0

@@ -31,6 +31,13 @@ except ImportError:
     sys.exit(1)
 
 try:
+    from playwright_stealth import stealth_async
+    STEALTH_AVAILABLE = True
+except ImportError:
+    stealth_async = None
+    STEALTH_AVAILABLE = False
+
+try:
     from supabase import create_client
 except ImportError:
     print("请安装 supabase: pip install supabase")
@@ -105,23 +112,43 @@ class Local1688Scraper:
             user_data_dir = self._get_chrome_profile_path()
 
             print(f"\n🌐 启动浏览器...")
-            if user_data_dir and Path(user_data_dir).exists():
-                print(f"   使用 Chrome Profile: {user_data_dir}")
-                context = await p.chromium.launch_persistent_context(
-                    user_data_dir,
-                    headless=self.headless,
-                    viewport={"width": 1920, "height": 1080},
-                    locale="zh-CN",
-                )
-            else:
-                print("   使用新的浏览器实例（需要手动登录）")
-                browser = await p.chromium.launch(headless=self.headless)
-                context = await browser.new_context(
-                    viewport={"width": 1920, "height": 1080},
-                    locale="zh-CN",
-                )
+            # 使用独立的浏览器实例，避免与正在运行的 Chrome 冲突
+            browser = await p.chromium.launch(headless=self.headless)
+            context = await browser.new_context(
+                viewport={"width": 1920, "height": 1080},
+                locale="zh-CN",
+            )
+
+            # 尝试加载 cookies 文件
+            cookies_file = Path(__file__).parent.parent / "cookies"
+            if cookies_file.exists():
+                try:
+                    import json
+                    with open(cookies_file, "r") as f:
+                        cookies = json.load(f)
+                    # 格式化 cookies 为 Playwright 格式
+                    formatted_cookies = []
+                    for cookie in cookies:
+                        formatted_cookie = {
+                            "name": cookie.get("name", ""),
+                            "value": cookie.get("value", ""),
+                            "domain": cookie.get("domain", ".1688.com"),
+                            "path": cookie.get("path", "/"),
+                        }
+                        if cookie.get("expirationDate"):
+                            formatted_cookie["expires"] = cookie["expirationDate"]
+                        formatted_cookies.append(formatted_cookie)
+                    await context.add_cookies(formatted_cookies)
+                    print(f"   ✓ 加载了 {len(formatted_cookies)} 个 cookies")
+                except Exception as e:
+                    print(f"   ⚠️ 加载 cookies 失败: {e}")
 
             page = await context.new_page()
+
+            # 应用 stealth 模式
+            if STEALTH_AVAILABLE and stealth_async:
+                await stealth_async(page)
+                print("   ✓ Stealth 模式已启用")
 
             try:
                 # 构建搜索 URL
@@ -130,7 +157,8 @@ class Local1688Scraper:
                     search_url += f"&e_price={int(max_price)}"
 
                 print(f"\n📄 访问: {search_url}")
-                await page.goto(search_url, wait_until="networkidle", timeout=60000)
+                # 使用 domcontentloaded 而不是 networkidle，更快加载
+                await page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
 
                 # 等待页面加载
                 await asyncio.sleep(3)
@@ -141,9 +169,18 @@ class Local1688Scraper:
 
                 if "验证" in page_title or "登录" in page_title:
                     print("\n⚠️  检测到验证码或登录页面")
-                    print("   请在浏览器中完成验证/登录，然后按 Enter 继续...")
-                    input()
+                    print("   请在浏览器中完成验证/登录...")
+                    # 检查是否在交互模式
+                    if sys.stdin.isatty():
+                        print("   完成后按 Enter 继续...")
+                        input()
+                    else:
+                        print("   等待 30 秒供手动操作...")
+                        await asyncio.sleep(30)
                     await asyncio.sleep(2)
+                    # 重新检查页面标题
+                    page_title = await page.title()
+                    print(f"   当前页面: {page_title}")
 
                 # 提取产品数据
                 suppliers = await self._extract_products(page, limit)

@@ -36,6 +36,9 @@ class RankingService:
     - Competition (15%): Inverse of seller count (lower = better)
     """
 
+    # Version for tracking deployments
+    VERSION = "2.0.0-fix-supplier-query"
+
     # Scoring weights
     WEIGHTS = {
         "demand": 0.40,      # Market demand (listing counts)
@@ -128,6 +131,8 @@ class RankingService:
             "rankings": rankings,
             "generated_at": datetime.now().isoformat(),
             "elapsed_seconds": elapsed_time,
+            "version": self.VERSION,
+            "is_serverless": IS_SERVERLESS,
             "data_sources": {
                 "trademe": market == "NZ",
                 "amazon_au": True,

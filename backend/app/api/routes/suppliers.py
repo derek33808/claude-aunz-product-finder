@@ -105,22 +105,31 @@ async def search_1688_suppliers(
 
             if result.data:
                 print(f"[1688] Found {len(result.data)} cached suppliers for '{keyword}'")
-                return [
-                    Supplier1688Response(
-                        offer_id=s["offer_id"],
+                suppliers = []
+                for s in result.data:
+                    # Extract offer_id from product_url
+                    product_url = s.get("product_url", "")
+                    offer_id = ""
+                    if product_url:
+                        import re
+                        match = re.search(r"/offer/(\d+)", product_url)
+                        if match:
+                            offer_id = match.group(1)
+
+                    suppliers.append(Supplier1688Response(
+                        offer_id=offer_id or str(s.get("id", "")),
                         title=s["title"],
                         price=float(s["price"]),
-                        moq=1,
+                        moq=s.get("moq", 1),
                         sold_count=s.get("sold_count", 0),
                         image_url=s.get("image_url"),
-                        product_url=s.get("product_url", ""),
-                        supplier_name=s.get("supplier_name", "Unknown"),
+                        product_url=product_url,
+                        supplier_name=s.get("supplier_name") or "Unknown",
                         location=s.get("location"),
-                        is_small_medium=True,
-                        id=s["offer_id"],
-                    )
-                    for s in result.data
-                ]
+                        is_small_medium=s.get("is_small_medium", True),
+                        id=offer_id or str(s.get("id", "")),
+                    ))
+                return suppliers
         except Exception as e:
             print(f"[1688] Cache query error: {e}")
             # 继续尝试实时爬取
